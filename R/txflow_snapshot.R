@@ -1,6 +1,8 @@
 #' Utility function to get a snapshot specification
 #' 
 #' @param x Snapshot
+#' @param as.actor User of service requesting snapshot specification
+#' @param audited Enable audit trail for snapshot specification request
 #' 
 #' @return Snapshot specification as a list
 #' 
@@ -13,7 +15,7 @@
 #' 
 #' @export
 
-txflow_snapshot <- function( x ) {
+txflow_snapshot <- function( x, as.actor = NULL, audited = FALSE ) {
 
   if ( missing(x) || is.null(x) || any(is.na(x)) || ! inherits(x, "character") || ( base::trimws(x) == "" ) ||
        ! txflow.service::txflow_validname(x) )
@@ -42,6 +44,40 @@ txflow_snapshot <- function( x ) {
   
   if ( inherits( tmp_spec, "try-error" ) ) 
     return(invisible(list()))
+  
+  
+  if ( ! audited ) 
+    return(invisible(lst))
+
+    
+  # -- audit record
+  
+  # - configuration 
+  cfg <- cxapp::.cxappconfig()
+  
+  
+  if ( is.null(as.actor) )
+    stop( "Actor must be specified for audited actions" )
+  
+  audit_rec <- try( cxaudit::cxaudit_record( list( "event" = "read", 
+                                                   "type" = "datarepository.snapshot", 
+                                                   "class" = "snapshot",
+                                                   "reference" = base::unname(lst[["name"]]), 
+                                                   "object" = digest::digest( paste(lst[ c( "repository", "name") ], collapse = "/"), algo = "sha1", file = FALSE ), 
+                                                   "label" = paste( "Get snapshot", lst[["name"]], " specification from data repository", lst[["repository"]] ),
+                                                   "actor"  = ifelse( ! is.null(as.actor), as.actor, Sys.info()["user"] ),
+                                                   "env" = cfg$option( "service.environment", unset = "txflow" ) ) ),
+                    silent = FALSE )
+  
+  if ( inherits( audit_rec, "try-error") )
+    stop( "Could not create audit record" )
+  
+  audit_commit <- try( cxaudit::cxaudit_commit( list( audit_rec ) ), silent = FALSE )
+  
+  if ( inherits( audit_commit, "try-error") || is.null(audit_commit) || ! audit_commit )
+    stop( "Failed to commit audit record" )
+
+  
   
   return(invisible(lst))
 }
