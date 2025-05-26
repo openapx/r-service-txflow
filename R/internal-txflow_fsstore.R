@@ -262,7 +262,7 @@
   if ( ! "snapshot" %in% base::names(resource_spec) ) {
 
     # - blob reference in the cache
-    obj_cacheref <- paste0( "resource:", paste( resource_spec[ c( "repository", "resource") ], collapse = "/") )
+    obj_cacheref <- paste0( "resource:", paste( resource_spec[ c( "repository", "resource") ], collapse = ":") )
     
     
     # - blob already in the cache  
@@ -317,14 +317,14 @@
   for ( xentry in snapshot_spec[["contents"]] ) {
     
     # note: cannot resolve blob 
-    if ( ! "hash" %in% base::names(xentry) )
+    if ( ! "blobs" %in% base::names(xentry) )
       next()
 
              
     # note: object reference is <repository>/<blob>
-    for ( srch in c( "name", "hash") )
+    for ( srch in c( "name", "blobs") )
       if ( srch %in% base::names(xentry) && ( resource_spec["resource"] == xentry[[srch]] ) ) 
-        return(invisible( .self$getresource( paste( resource_spec[ "repository" ], xentry[["hash"]], sep = "/" ) ) ))        
+        return(invisible( .self$getresource( paste( resource_spec[ "repository" ], xentry[["blobs"]], sep = "/" ) ) ))        
 
   }  # end for-statement for entries in contents
          
@@ -378,7 +378,7 @@
   if ( ! "snapshot" %in% base::names(resource_spec) ) {
     
     # - blob reference in the cache
-    obj_cacheref <- paste0( "reference:", paste( resource_spec[ c( "repository", "resource") ], collapse = "/") )
+    obj_cacheref <- paste0( "reference:", paste( resource_spec[ c( "repository", "resource") ], collapse = ":") )
     
     
     # - blob already in the cache  
@@ -433,14 +433,14 @@
   for ( xentry in snapshot_spec[["contents"]] ) {
     
     # note: cannot resolve blob 
-    if ( ! "hash" %in% base::names(xentry) )
+    if ( ! "blobs" %in% base::names(xentry) )
       next()
     
     
     # note: object reference is <repository>/<blob>
-    for ( srch in c( "name", "hash") )
+    for ( srch in c( "name", "blobs") )
       if ( srch %in% base::names(xentry) && ( resource_spec["resource"] == xentry[[srch]] ) ) 
-        return(invisible( .self$getreference( paste( resource_spec[ "repository" ], xentry[["hash"]], sep = "/" ) ) ))        
+        return(invisible( .self$getreference( paste( resource_spec[ "repository" ], xentry[["blobs"]], sep = "/" ) ) ))        
     
   }  # end for-statement for entries in contents
   
