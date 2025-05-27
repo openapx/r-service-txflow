@@ -121,7 +121,7 @@ SOURCE_ASSET=$(curl -s -H "Accept: application/vnd.github+json" \
                     https://api.github.com/repos/cxlib/r-package-cxaudit/releases/latest )
 
 SOURCE_URL=$( echo ${SOURCE_ASSET} | jq -r '.assets[] | select( .name | match( "^cxaudit_\\d+.\\d+.\\d+.tar.gz$") ) | .browser_download_url' )
-CXAUDIT_SOURCE=$( echo ${SOURCE_ASSET} | jq -r '.assets[] | select( .name | match( "^cxaudit\\d+.\\d+.\\d+.tar.gz$") ) | .name' )
+CXAUDIT_SOURCE=$( echo ${SOURCE_ASSET} | jq -r '.assets[] | select( .name | match( "^cxaudit_\\d+.\\d+.\\d+.tar.gz$") ) | .name' )
 
 curl -sL -o /sources/R-packages/${CXAUDIT_SOURCE} ${SOURCE_URL}
 
