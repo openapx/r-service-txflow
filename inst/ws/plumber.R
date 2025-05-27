@@ -382,6 +382,12 @@ function( repo, snapshot, req, res ) {
   }
   
   
+  # - temporary: remove list names for snapshot content
+  if ( "contents" %in% base::names(lst) && (length(lst[["contents"]]) > 0) )
+    lst[["contents"]] <- base::unname(lst[["contents"]])
+  
+  
+  
   
   res$status <- 200  # OK
   
@@ -1158,7 +1164,7 @@ function( work, req, res ) {
   
   rslt <- try( txflow.service::txflow_commit( work, snapshot = attrs[["snapshot"]], as.actor = attr(auth_result, "principal") ), silent = FALSE )
 
-  if ( inherits( rslt, "try-error" ) || is.null(rslt) || ! inherits( rslt, "logical") || ! rslt ) {
+  if ( inherits( rslt, "try-error" ) || is.null(rslt) ) {
     cxapp::cxapp_log( "Commit of work area failed", attr = log_attributes)
     res$status <- 409  # Conflict
     return(list("error" = "Commit of work area failed"))
@@ -1170,9 +1176,9 @@ function( work, req, res ) {
   res$status <- 201  # Created
   
   res$setHeader( "content-type", "application/json" )
-  res$body <- jsonlite::toJSON( list( "message" = "Commit succesful"), auto_unbox = TRUE, pretty = TRUE )
+  res$body <- jsonlite::toJSON( list(rslt), auto_unbox = TRUE, pretty = TRUE )
   
-  cxapp::cxapp_log( "Commit successful" , attr = log_attributes )
+  cxapp::cxapp_log( paste( "Commit to", rslt, "successful") , attr = log_attributes )
   
   
   return(res)  
@@ -1266,11 +1272,12 @@ function( req, res ) {
   lst[["auditor"]] <- list( "service" = cfg$option( "auditor", unset = "disabled", as.type = FALSE ) )  
   
   if ( cfg$option( "auditor", unset = FALSE ) ) 
-    lst[["auditor"]][["configuration"]] <- list( "auditor.url"= cfg$option( "auditor.url", unset = "<not set>" ), 
-                                                 "auditor.token" =  ifelse( is.na(cfg$option( "auditor.token", unset = NA )), "<not set>", "<set>" ))
-    
+    lst[["auditor"]][["configuration"]] <- list( "auditor.environment"= cfg$option( "auditor.environment", unset = as.character(Sys.info()["nodename"]), as.type = FALSE ),
+                                                 "auditor.url"= cfg$option( "auditor.url", unset = "<not set>" ), 
+                                                 "auditor.token" =  ifelse( is.na(cfg$option( "auditor.token", unset = NA )), "<not set>", "<set>" ), 
+                                                 "auditor.failcache"= cfg$option( "auditor.failcache", unset = "<not set>" )
+                                                 )
 
-  
   
   
   res$status <- 200  # OK
