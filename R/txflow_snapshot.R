@@ -65,8 +65,7 @@ txflow_snapshot <- function( x, as.actor = NULL, audited = FALSE ) {
                                                    "reference" = base::unname(lst[["name"]]), 
                                                    "object" = digest::digest( paste(lst[ c( "repository", "name") ], collapse = "/"), algo = "sha1", file = FALSE ), 
                                                    "label" = paste( "Get snapshot", lst[["name"]], " specification from data repository", lst[["repository"]] ),
-                                                   "actor"  = ifelse( ! is.null(as.actor), as.actor, Sys.info()["user"] ),
-                                                   "env" = cfg$option( "service.environment", unset = "txflow" ) ) ),
+                                                   "actor"  = ifelse( ! is.null(as.actor), as.actor, Sys.info()["user"] ) ) ),
                     silent = FALSE )
   
   if ( inherits( audit_rec, "try-error") )

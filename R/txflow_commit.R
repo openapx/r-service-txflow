@@ -221,7 +221,6 @@ txflow_commit <- function( x, snapshot = NULL, as.actor = NULL ) {
                                "object" = blob_spec[["sha"]],
                                "label" = paste( "Commit of", blob_spec[["class"]], blob_spec[["reference"]], "as", blob_spec[["name"]], "in snapshot", paste(commit_scope, collapse = "/") ),
                                "actor"  = ifelse( ! is.null(as.actor), as.actor, "unknown" ),
-                               "env" = cfg$option( "service.environment", unset = "txflow" ), 
                                "_attributes_" = list() )
       
       

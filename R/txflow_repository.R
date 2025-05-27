@@ -39,8 +39,7 @@ txflow_repository <- function( x, as.actor = NULL ) {
                            "type" = "data.repository", 
                            "reference" = x, 
                            "label" = paste( "Created repository", x), 
-                           "actor"  = ifelse( ! is.null(as.actor), as.actor, "unknown" ),
-                           "env" = cfg$option( "service.environment", unset = "txflow" ) )
+                           "actor"  = ifelse( ! is.null(as.actor), as.actor, "unknown" ) )
     
     cxaudit::cxaudit_commit( list( cxaudit::cxaudit_record( audit_details ) ) )
     

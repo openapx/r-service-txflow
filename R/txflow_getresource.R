@@ -66,8 +66,7 @@ txflow_getresource <- function( x, as.actor = NULL ) {
                                                    "label" = paste( "Get resource of", 
                                                                     blob_spec[["class"]], blob_spec[["reference"]], "as", blob_spec[["name"]], 
                                                                     "from repository", utils::head( unlist(strsplit(x, "/", fixed = TRUE)), n = 1 ) ),
-                                                   "actor"  = ifelse( ! is.null(as.actor), as.actor, Sys.info()["user"] ) ,
-                                                   "env" = cfg$option( "service.environment", unset = "txflow" ) ) ), 
+                                                   "actor"  = ifelse( ! is.null(as.actor), as.actor, Sys.info()["user"] ) ) ), 
                     silent = FALSE )
 
   
