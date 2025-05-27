@@ -1,6 +1,6 @@
 # Simple workflow to build and publish R Compute Service container images
 
-name: Matrix -- Build and publish auditor service docker images
+name: Matrix -- Build and publish txflow service docker images
 
 on:
   push:
@@ -11,8 +11,8 @@ on:
     paths:
       - libs-*
       - .scripts/*
-      - docker/auditorservice/Dockerfile-auditorservice-matrix
-      - .github/workflows/build-docker-auditorservice-matrix.yml
+      - docker/txflowservice/Dockerfile-txflowservice-matrix
+      - .github/workflows/build-docker-txflowservice-matrix.yml
   workflow_dispatch:
 
 env:
@@ -21,7 +21,7 @@ env:
 
 jobs:
   push_to_registry:
-    name: Push auditor image Docker image to Docker Hub
+    name: Push txflow image Docker image to Docker Hub
     
     strategy:
       matrix:
@@ -62,13 +62,13 @@ jobs:
         with:
           context: .
           build-args: |
-            OPENAPX_CONTAINERID=${{ github.repository_owner }}-auditorservice-${{ vars.VERSION_MAJOR }}.${{ vars.VERSION_MINOR }}-dev.${{ github.run_id}}-${{ matrix.os }}-R${{ matrix.rversion }}
+            OPENAPX_CONTAINERID=${{ github.repository_owner }}-txflowservice-${{ vars.VERSION_MAJOR }}.${{ vars.VERSION_MINOR }}-dev.${{ github.run_id}}-${{ matrix.os }}-R${{ matrix.rversion }}
             OPENAPX_IMAGEOS=${{ matrix.os }}
             OPENAPX_RVERTARGET=${{ matrix.rversion }}
-          file: docker/auditorservice/Dockerfile-auditorservice-matrix
+          file: docker/txflowservice/Dockerfile-txflowservice-matrix
           push: true
           tags: |
-            ${{ github.repository_owner }}/auditorservice:dev-${{ matrix.os }}-R${{ matrix.rversion }}
+            ${{ github.repository_owner }}/txflowservice:dev-${{ matrix.os }}-R${{ matrix.rversion }}
           labels: ${{ steps.meta.outputs.labels }}
 
 
@@ -79,13 +79,13 @@ jobs:
         with:
           context: .
           build-args: |
-            OPENAPX_CONTAINERID=${{ github.repository_owner }}-auditorservice-${{ vars.VERSION_MAJOR}}.${{ vars.VERSION_MINOR }}.${{ github.run_number}}-${{ github.sha}}-${{ matrix.os }}-R${{ matrix.rversion }}
+            OPENAPX_CONTAINERID=${{ github.repository_owner }}-txflowservice-${{ vars.VERSION_MAJOR}}.${{ vars.VERSION_MINOR }}.${{ github.run_number}}-${{ github.sha}}-${{ matrix.os }}-R${{ matrix.rversion }}
             OPENAPX_IMAGEOS=${{ matrix.os }}
             OPENAPX_RVERTARGET=${{ matrix.rversion }}
-          file: docker/auditorservice/Dockerfile-auditorservice-matrix
+          file: docker/txflowservice/Dockerfile-txflowservice-matrix
           push: true
           tags: |
-            ${{ github.repository_owner }}/auditorservice:${{ vars.VERSION_MAJOR}}.${{ vars.VERSION_MINOR }}.${{ github.run_number}}-${{ github.sha}}-${{ matrix.os }}-R${{ matrix.rversion }}
-            ${{ github.repository_owner }}/auditorservice:latest-${{ matrix.os }}-R${{ matrix.rversion }}
+            ${{ github.repository_owner }}/txflowservice:${{ vars.VERSION_MAJOR}}.${{ vars.VERSION_MINOR }}.${{ github.run_number}}-${{ github.sha}}-${{ matrix.os }}-R${{ matrix.rversion }}
+            ${{ github.repository_owner }}/txflowservice:latest-${{ matrix.os }}-R${{ matrix.rversion }}
           labels: ${{ steps.meta.outputs.labels }}
 
