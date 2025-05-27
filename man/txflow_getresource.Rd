@@ -4,10 +4,12 @@
 \alias{txflow_getresource}
 \title{Utility function to retrieve a file associated with a repository snapshot}
 \usage{
-txflow_getresource(x)
+txflow_getresource(x, as.actor = NULL)
 }
 \arguments{
 \item{x}{Snapshot file or resource}
+
+\item{as.actor}{User or service retrieving resource}
 }
 \value{
 Path to the cached file or resource
