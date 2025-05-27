@@ -116,12 +116,6 @@ There are three standard directories.
 # -- default service configuration
 
 
-# -- Application/service identity
-#    note: this is the value that identifies the service in audit trails, etc
-SERVICE.ENVIRONMENT = txflow
-
-
-
 # -- txflow service
 
 # - local storage enabled
@@ -176,10 +170,10 @@ LOG.ROTATION = month
 # -- API authorization
 #    note: uses vault configuration below
 #    note: access tokens should be created 
-#    note: see reference section Authentication in the auditor service API reference
+#    note: see reference section Authentication in the txflow service API reference
 #    note: see section API Authentication in the cxapp package https://github.com/cxlib/r-package-cxapp 
 #    note: service - utility /opt/openapx/utilities/vault-apitoken-service.sh <service name>
-API.AUTH.SECRETS = /api/auth/auditor/services/*
+API.AUTH.SECRETS = /api/auth/txflow/services/*
 
 # - named list of users and services acting as admins
 #   note: space delimited list of principals associated with access tokens 
@@ -202,7 +196,7 @@ The txflow container image is pre-configured to use the local vault to store enc
 tokens that can be used to authenticate with the API.
 
 The default configuration is to look for registered tokens with prefix 
-`/api/auth/auditor/services` in the local vault.
+`/api/auth/txflow/services` in the local vault.
 
 The utility vault API service token utility can be used to create a token
 associated with a named service.
