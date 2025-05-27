@@ -149,9 +149,9 @@ function( repo, req, res ) {
   
   # -- only API admins can create data repositories
 
-  api_admins <- base::tolower(unlist(strsplit( gsub( "\\s{2,}", " ", cfg$option( "api.admins", unset = "", as.type = FALSE) ), " ", fixed = TRUE), use.names = FALSE))
+  api_admins <- base::trimws(base::tolower(unlist(strsplit( gsub( "\\s{2,}", " ", cfg$option( "api.admins", unset = "*", as.type = FALSE) ), " ", fixed = TRUE), use.names = FALSE)))
   
-  if ( ! service_principal %in% api_admins ) {
+  if ( ( api_admins != "*" ) && ! service_principal %in% api_admins ) {
     cxapp::cxapp_log("Not permitted", attr = log_attributes)
     res$status <- 403  # Forbidden
     return("Not permitted")
