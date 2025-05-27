@@ -68,18 +68,19 @@ txflow_addfile <- function( x, work = NULL, attrs = NULL ) {
   
   
   # -- check for existing like named items
-  
-  entry_lst <- character(0)
+
+  # - list of entry blobs
+  entry_blobs <- list()
+    
   
   if ( file.exists( file.path( wrk_path, "entries", fsep = "/" ) ) ) {
 
     # - get list of current entries    
-    entry_lst <- try( base::readLines( file.path( wrk_path, "entries", fsep = "/" ), warn = FALSE ), silent = FALSE )
-    
-    
+    lst_entries <- try( base::readLines( file.path( wrk_path, "entries", fsep = "/" ), warn = FALSE ), silent = FALSE )
+
     # - parse entry list
-    entry_blobs <- gsub( "^(.*)\\s.*$", "\\1", entry_lst )
-    base::names(entry_blobs) <- gsub( "^.*\\s(.*)$", "\\1", entry_lst )
+    entry_blobs <- gsub( "^(.*)\\s.*$", "\\1", lst_entries )
+    base::names(entry_blobs) <- gsub( "^.*\\s(.*)$", "\\1", lst_entries )
 
     
     if ( blob_meta[["name"]] %in% base::names(entry_blobs) ) {
@@ -91,22 +92,22 @@ txflow_addfile <- function( x, work = NULL, attrs = NULL ) {
       
 
       # - remove from list of entries
-      entry_blobs <- entry_blobs[ ! base::names(entry_blobs) %in% blob_meta[["name"]] ]
+      entry_blobs[[ blob_meta[["name"]] ]] <- NA
       
     }
-    
 
-    # - add file to blob entries
-    entry_blobs[[ blob_meta[["name"]] ]] <- blob_meta[["blobs"]]
-    
-    
-    # - updated entries
-    entry_lst <- sapply( base::names(entry_blobs), function( z ) {
-      paste( entry_blobs[z], z )
-    })
-   
   } # end of if-statement for list of entries
     
+
+  # - add file to blob entries
+  entry_blobs[[ blob_meta[["name"]] ]] <- blob_meta[["blobs"]]
+  
+  
+    
+  # - updated entries
+  entry_lst <- sapply( base::names(entry_blobs[ ! is.na(entry_blobs) ]), function( z ) {
+    paste( entry_blobs[z], z )
+  })
   
   
   # - save list of entries

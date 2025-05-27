@@ -69,23 +69,38 @@ txflow_addreference <- function( x, work = NULL, name = NULL ) {
   # -- identify resource
   
   resource <- unlist(strsplit( x, "/", fixed = TRUE), use.names = FALSE)
-
-  resource_naming <- list( c( "resource"), 
-                           c( "repository", "resource"),
-                           c( "repository", "snapshot", "resource") )
+  
+  # - just the resource
+  if ( length(resource) == 1 )
+    base::names(resource) <- "resource"
     
-  base::names(resource) <- resource_naming[[ length(resource) ]]
-
+  # - resource reference starts with repository
+  if ( ( length(resource) == 2 ) && ( resource[[1]] == snapshot_spec[["repository"]] ) )
+    base::names(resource) <- c( "repository", "resource" )
   
+  # - resource reference does not start with repository ... so starts with snapshot
+  if ( ( length(resource) == 2 ) && ( resource[[1]] != snapshot_spec[["repository"]] ) )
+    base::names(resource) <- c( "snapshot", "resource" )
+  
+  # - full qualified resource
+  if ( length(resource) == 3 )
+    base::names(resource) <- c( "repository", "snapshot", "resource")
+  
+
+  # - if missing repository details .. amend
+  if ( ! "repository" %in% base::names(resource) )
+    resource["repository"] <- base::unname(snapshot_spec[["repository"]])
+  
+  
+  # - ensure resource is from within work area snapshot specification repository  
   if ( "repository" %in% base::names(resource) && ( base::unname(resource[["repository"]]) != base::unname(snapshot_spec[["repository"]]) ) )
-    stop( "Respository in work area snapshot specification does not match repository of specified resource")
-  
-  
-  # - force repository
-  resource[ "repository" ] <- base::unname(snapshot_spec[["repository"]])
-  
+    stop( "Repository in work area snapshot specification does not match repository of specified resource")
   
 
+  # - reorder entries to sequence repository - snapshot - resource
+  resource_names <- c( "repository", "snapshot", "resource" )
+  resource <- resource[ resource_names[ resource_names %in% base::names(resource) ] ]
+  
   
   # -- connect to storage
   strg <- txflow.service::txflow_store()
@@ -94,14 +109,14 @@ txflow_addreference <- function( x, work = NULL, name = NULL ) {
   
   # -- get reference 
   ref_path <- try( strg$getreference( paste( resource, collapse = "/") ), silent = FALSE )
- 
+
   if ( inherits( ref_path, "try-error" ) || is.null(ref_path) )
     return(invisible(NULL))
   
   
   # -- import reference
   resource_spec <- try( jsonlite::fromJSON( ref_path ), silent = FALSE ) 
-  
+print(resource_spec)   
   if ( inherits(resource_spec, "try-error") )
     return(invisible(NULL))
   
@@ -116,17 +131,19 @@ txflow_addreference <- function( x, work = NULL, name = NULL ) {
   
   # -- check for existing like named items
 
-  entry_lst <- character(0)
+  # - list of entry blobs
+  entry_blobs <- list()
+
 
   if ( file.exists( file.path( wrk_path, "entries", fsep = "/" ) ) ) {
 
     # - get list of current entries
-    entry_lst <- try( base::readLines( file.path( wrk_path, "entries", fsep = "/" ), warn = FALSE ), silent = FALSE )
+    lst_entries <- try( base::readLines( file.path( wrk_path, "entries", fsep = "/" ), warn = FALSE ), silent = FALSE )
 
 
     # - parse entry list
-    entry_blobs <- gsub( "^(.*)\\s.*$", "\\1", entry_lst )
-    base::names(entry_blobs) <- gsub( "^.*\\s(.*)$", "\\1", entry_lst )
+    entry_blobs <- gsub( "^(.*)\\s.*$", "\\1", lst_entries )
+    base::names(entry_blobs) <- gsub( "^.*\\s(.*)$", "\\1", lst_entries )
 
 
     if ( resource_spec[["name"]] %in% base::names(entry_blobs) ) {
@@ -138,24 +155,23 @@ txflow_addreference <- function( x, work = NULL, name = NULL ) {
 
 
       # - remove from list of entries
-      entry_blobs <- entry_blobs[ ! base::names(entry_blobs) %in% resource_spec[["name"]] ]
+      entry_blobs[[ resource_spec[["name"]] ]] <- NA
 
     }
-
-
-    # - add file to blob entries
-    entry_blobs[[ resource_spec[["name"]] ]] <- resource_spec[["blobs"]]
-
-
-    # - updated entries
-    entry_lst <- sapply( base::names(entry_blobs), function( z ) {
-      paste( entry_blobs[z], z )
-    })
 
   } # end of if-statement for list of entries
 
 
-
+  # - add file to blob entries
+  entry_blobs[[ resource_spec[["name"]] ]] <- resource_spec[["blobs"]]
+  
+  
+  # - updated entries
+  entry_lst <- sapply( base::names(entry_blobs[ ! is.na(entry_blobs) ]), function( z ) {
+    paste( entry_blobs[z], z )
+  })
+  
+  
   # - save list of entries
 
   if ( ! inherits( entry_lst, "try-error" ) &&
