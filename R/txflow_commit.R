@@ -18,7 +18,7 @@ txflow_commit <- function( x, snapshot = NULL, as.actor = NULL ) {
 
   
   # -- connect to work area
-  wrk <- try( txflow.service::txflow_workarea( work = x, snapshot = snapshot ), silent = FALSE )
+  wrk <- try( txflow.service::txflow_workarea( work = x ), silent = FALSE )
   
   if ( inherits( wrk, "try-error" ) )
     stop( "Work area for snapshot could not be established" )
@@ -63,13 +63,15 @@ txflow_commit <- function( x, snapshot = NULL, as.actor = NULL ) {
 
   } else {
     
-    # - specified snapshot is commit scope 
-    if ( ! txflow.service::txflow_validname( snapshot, context = "snapshot") )
-      stop("Specified snapshot is not a valid snapshot reference" )
-    
     commit_scope <- unlist(strsplit( base::tolower(base::trimws(snapshot)), "/"), use.names = FALSE )
+
+    # note: commit re-direct to another snapshot
+    if ( length(commit_scope) == 1 ) 
+      commit_scope <- c( snapshot_spec[["repository"]], commit_scope )
+
+            
     base::names(commit_scope) <- c( "repository", "snapshot" )
-  
+
     
     # - validate against snapshot spec
     
@@ -78,13 +80,20 @@ txflow_commit <- function( x, snapshot = NULL, as.actor = NULL ) {
       stop( "Specified snapshot is not within the same repository as the snapshot specification" )
 
   }
-  
-  
+
+
   if ( "unknown" %in% commit_scope )
     stop( "Commit snapshot not defined" )
+
   
-  
+    
   # note: at this point ... we know repository and snapshot
+  
+  
+
+  # - specified snapshot is commit scope 
+  if ( ! txflow.service::txflow_validname( paste(commit_scope, collapse = "/"), context = "snapshot") )
+    stop("Specified snapshot is not a valid snapshot reference" )
   
   
   
@@ -313,7 +322,7 @@ txflow_commit <- function( x, snapshot = NULL, as.actor = NULL ) {
   strg <- try( txflow.service::txflow_store(), silent = FALSE )
   
   if ( inherits(strg, "try-error") )
-    return(invisible(FALSE))
+    stop( "Storage not available" )
   
   
   
@@ -471,10 +480,10 @@ txflow_commit <- function( x, snapshot = NULL, as.actor = NULL ) {
     unlink( wrk_area, recursive = TRUE, force = TRUE )
     
     if ( ! dir.exists(wrk_area) )
-      return(invisible(TRUE))
+      return(invisible( paste( commit_scope, collapse = "/") ))
   }
   
  
     
-  return(invisible(FALSE))
+  return(invisible(NULL))
 }
