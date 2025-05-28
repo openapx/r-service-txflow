@@ -495,8 +495,9 @@ function( repo, reference, req, res ) {
 
   res$status <- 200  # OK
   res$setHeader( "content-type", "application/octet-stream" )
+  res$body <- base::readBin( repo_obj, "raw", n = base::file.info(repo_obj)$size ) 
 
-  return( base::readBin( repo_obj, "raw", n = base::file.info(repo_obj)$size ) )
+  return( res )
 }
 
 
@@ -597,8 +598,9 @@ function( repo, snapshot, reference, req, res ) {
   
   res$status <- 200  # OK
   res$setHeader( "content-type", "application/octet-stream" )
+  res$body <- base::readBin( repo_obj, "raw", n = base::file.info(repo_obj)$size ) 
   
-  return( base::readBin( repo_obj, "raw", n = base::file.info(repo_obj)$size ) )  
+  return( res )
 }
 
 
