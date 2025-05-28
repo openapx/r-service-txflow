@@ -236,7 +236,7 @@ Please the default configuration for the txflow service container image for requ
 <br/>
 
 
-### API Refernce
+### API Reference
 
 <br/>
 
@@ -692,5 +692,666 @@ The logging mechanism supports the following configuration options.
    
  
 See cxapp::cxapp_log() for additional details.
+
+<br/>
+<br/>
+<br/>
+
+## Examples
+The first set of examples shared is using R.
+
+But before we start, we need an access token to authenticate with for each request.
+
+<br/>
+
+#### Creating an Access Token
+All requests, except a simple ping to the txflow service requires a token to authenticate with.
+
+The standard container image includes a local secrets vault that can be used for exploring the
+service and a simple utility to generate a service token.
+
+```
+$ docker exec <container>  /opt/openapx/utilities/vault-apitoken-service.sh <name>
+```
+
+The example uses the `docker` utility assuming you are running the container image 
+with something like Docker Desktop. If you are hosting the txflow service in a
+cluster or some other utility, use the appropriate utility or tool.
+
+The `vault-apitoken-service.sh` utility prints a token in clear text as output. 
+This is the token value used for requests to use.
+
+```
+Token
+----------------------------------------------------
+an4wAtwXuPK0NVk3P7NdPftkaQWFN2UFewbyrqLd
+```
+
+The token identifies the requestor, so any log entries will use `<name>`. The 
+same applies if Auditor is enabled. The `<name>` is the actor, i.e. user or 
+service, that is registered in the audit records as performing the actions.
+
+It is good practice that each service or user is given a unique token so that 
+the requests can be easily identified.
+
+<br/>
+
+#### Using R with txflow
+The following is a set of simple step-by-step examples that demonstrate how 
+the txflow service works using plain R and the httr2 package.
+
+To make the examples work, we define two standard objects, the first is the URL
+(including the port number). txflow supports both HTTP (port 80) and HTTPS 
+(port 443). Below, port 81 is used as an example.
+
+The second object is the access token.
+
+```
+url_to_auditor <- "http://auditor.example.com:81"
+my_token_in_clear_text <- "<access token>"
+```
+Note that for HTTPS, the container contains a self-signed certificate that is
+generated each time the container is built. If you are using HTTPS, ensure that
+you have disabled root certificate validation.
+
+We will also need a few test files to upload. We will use some files with random 
+content to represent a data blobs and a few of the classic R example data frames
+`mtcars` and `nottem` to represent R data files.
+
+```
+# -- random data
+#    note: using the current working directory
+#    note: create three files in the data directory 
+
+for ( data_file in c( "test-data-01.txt", "test-data-02.txt", "test-data-03.txt") )
+  base::writeLines( paste( sample( c( base::LETTERS, base::letters, as.character(0:9) ), 
+                                   4000, 
+                                   replace = TRUE ),
+                           collapse = "" ), 
+                    con = file.path( base::getwd(), "data", data_file ) )
+
+
+# -- save mtcars and nottem a file
+#    note: arbitrarily selected saveRDS() 
+
+base::saveRDS( mtcars, , file = file.path( base::getwd(), "data", "mtcars.rds" ) )
+base::saveRDS( nottem, , file = file.path( base::getwd(), "data", "nottem.rds" ) )
+```
+
+There should now be 3 random data blobs and 2 save data frames in our data 
+directory.
+
+
+<br/>
+
+
+##### Service Information
+Information on the service and service configuration can easily be obtained.
+
+```
+# -- service information
+#    GET /api/info
+
+info <- httr2::request( url_to_auditor ) |>
+  httr2::req_method("GET") |>
+  httr2::req_url_path("/api/info") |>
+  httr2::req_auth_bearer_token( my_token_in_clear_text ) |>
+  httr2::req_perform() |>
+  httr2::resp_body_json()
+```  
+  
+The result is a list of named entries.
+
+<br/>
+
+
+##### Create a Repository
+A data repository is created in a single step
+
+```
+# -- Create a named repository
+#    PUT /api/repositories/<name>
+
+repository <- "example-01"
+
+create_repo <- httr2::request( url_to_auditor ) |>
+  httr2::req_method("PUT") |>
+  httr2::req_url_path("/api/repositories") |>
+  httr2::req_url_path_append( repository ) |>
+  httr2::req_auth_bearer_token( my_token_in_clear_text ) |>
+  httr2::req_perform() |>
+  httr2::resp_body_json()
+```  
+
+The new repository name is returned.
+
+<br/>
+
+
+##### Get a Snapshot Work Area
+Snapshots are created, edited and saved using a snapshot work area.
+
+To create a snapshot work area, simply request one. You can have multiple work
+areas active at any one time and they do persist across sessions until they are
+committed even though they are designed as a temporary staging area for performing
+multiple steps before finally saving the result.
+
+Note we are using the repsitory from the preceeding example. A snapshot can only
+exist within a repository.
+
+```
+# -- Get snapshot work area
+#    GET /api/work/<repository>/<snapshot>
+
+snapshot <- "mysnapshot-01"
+
+work_area <- httr2::request( url_to_auditor ) |>
+  httr2::req_method("GET") |>
+  httr2::req_url_path("/api/work") |>
+  httr2::req_url_path_append( repository ) |>
+  httr2::req_url_path_append( snapshot ) |>
+  httr2::req_auth_bearer_token( my_token_in_clear_text ) |>
+  httr2::req_perform() |>
+  httr2::resp_body_json()
+
+work_area <- unlist(work_area)
+
+```
+
+A list containing the work area reference is returned. To make it easier, we unlist
+the work area reference and save it in the `work_area` object that we will use
+in below examples.
+
+
+<br/>
+
+
+##### Add files to a snapshot work area
+One or more files can be added to the snapshot work area.
+
+The first file to be added is what I would call a data blob.
+
+```
+# -- Add/Upload files to a work area
+#    PUT /api/work/<work>/<reference>
+#
+#    note: the Content-type header must equal "application/octet-stream"
+
+# note: using all default attributes
+# note: using the reference "mydatablob"
+
+data_blob_file <- file.path( base::getwd(), "data", "test-data-01.txt" )
+
+add_data_blob <- httr2::request( url_to_auditor ) |>
+  httr2::req_method("PUT") |>
+  httr2::req_url_path("/api/work") |>
+  httr2::req_url_path_append( work_area ) |>
+  httr2::req_url_path_append( "mydatablob" ) |>
+  httr2::req_auth_bearer_token( my_token_in_clear_text ) |>
+  httr2::req_headers( "Content-type" = "application/octet-stream" ) |>
+  httr2::req_body_file( data_blob_file ) |>
+  httr2::req_perform() |>
+  httr2::resp_body_json()
+
+```
+
+The returned object is the attributes associated with the added/uploaded file. 
+We can set these attributes by specifying them as part of the request. In the 
+example below, we set the attributes `type`, `class`, `reference` and `mime`.
+
+
+```
+# -- Add/Upload files to a work area with attributes
+#    PUT /api/work/<work>/<name>?<attribites>
+#
+#    note: the Content-type header must equal "application/octet-stream"
+
+
+# note: the reference is the file name derived using base::basename()
+# note: setting the type to be "datafile.rds" noting it is an rds file
+# note: setting the calss to be "examples" to give the type a bit more context
+# note: setting reference equal to "nottem" 
+# note: setting mime equal to "rds"
+
+data_file <- file.path( base::getwd(), "data", "nottem.rds" )
+
+add_data_file <- httr2::request( url_to_auditor ) |>
+  httr2::req_method("PUT") |>
+  httr2::req_url_path("/api/work") |>
+  httr2::req_url_path_append( work_area ) |>
+  httr2::req_url_path_append( base::basename( data_file ) ) |>
+  httr2::req_url_query( "type" = "datafile.rds", 
+                        "class" = "examples", 
+                        "reference" = "nottem", 
+                        "mime" = "rds"
+                      ) |>
+  httr2::req_auth_bearer_token( my_token_in_clear_text ) |>
+  httr2::req_headers( "Content-type" = "application/octet-stream" ) |>
+  httr2::req_body_file( data_file ) |>
+  httr2::req_perform() |>
+  httr2::resp_body_json()
+```
+
+Again, the returned object is the attributes associated with the added/uploaded 
+file.
+
+
+<br/>
+
+
+
+##### Commit the work area to the repository
+The snapshot work area needs to be committed to the repositor before it becomes
+available.
+
+```
+# -- Commit work area to the repository
+#    PUT /api/commit/<work>
+
+commit <- httr2::request( url_to_auditor ) |>
+  httr2::req_method("PUT") |>
+  httr2::req_url_path("/api/commit") |>
+  httr2::req_url_path_append( work_area ) |>
+  httr2::req_auth_bearer_token( my_token_in_clear_text ) |>
+  httr2::req_perform() |>
+  httr2::resp_body_json()
+```
+
+The returned object refers to the committed snapshot.
+
+
+<br/>
+
+
+
+##### Listing repositories and snapshots
+The txflow REST API contains two simple endpoints for listing repositories and
+snapshots.
+
+```
+# -- Get a list of repositories
+#    GET /api/repositories
+
+lst_repositories <- httr2::request( url_to_auditor ) |>
+  httr2::req_method("GET") |>
+  httr2::req_url_path("/api/repositories") |>
+  httr2::req_auth_bearer_token( my_token_in_clear_text ) |>
+  httr2::req_perform() |>
+  httr2::resp_body_json()
+```
+
+The returned object is a list of repositories.
+
+We can just as easily get a list of snapshots within a repository. Note we are
+using the repository created at the beginning of our examples.
+
+```
+# -- Get a list of snapshots for a repository
+#    GET /api/repositories/<repository>/snapshots
+
+lst_snapshots <- httr2::request( url_to_auditor ) |>
+  httr2::req_method("GET") |>
+  httr2::req_url_path("/api/repositories") |>
+  httr2::req_url_path_append( repository ) |>
+  httr2::req_url_path_append( "snapshots" ) |>
+  httr2::req_auth_bearer_token( my_token_in_clear_text ) |>
+  httr2::req_perform() |>
+  httr2::resp_body_json()
+```
+
+The returned object is a list of snapshots for our given repository. Note the 
+format of the snapshot reference `<repository>/<snapshot>`, i.e. a snapshot
+can only exist within a given repsitory.
+
+
+<br/>
+
+
+
+##### Get a repository snapshot specification
+The specification for a given snapshot can be easily retrieved. Note that this 
+does not download any snapshot data files or blobs.
+
+```
+# -- Get a repository snapshot specification
+#    GET /api/repositories/<repository>/snapshots/<snapshot>
+
+snapshot_spec <- httr2::request( url_to_auditor ) |>
+  httr2::req_method("GET") |>
+  httr2::req_url_path("/api/repositories") |>
+  httr2::req_url_path_append( repository ) |>
+  httr2::req_url_path_append( "snapshots" ) |>
+  httr2::req_url_path_append( snapshot ) |>
+  httr2::req_auth_bearer_token( my_token_in_clear_text ) |>
+  httr2::req_perform() |>
+  httr2::resp_body_json()
+```
+
+The returned object contains the specification of the snapshot.
+
+
+<br/>
+
+
+
+##### Retrieving/Downloading a data file or blob
+There are several different approaches that can be used to retrieve or download
+a data file or blob from the repository, either referring to the data file or 
+blob directly (repository resource) or either as a named item or resource in the 
+snapshot.
+
+Using the previous example, we will download the first entry. The `snapshot_spec` 
+is a nested list of named entries since we used `httr2::resp_body_json()` as
+part of the request.
+
+```
+snapshot_first_entry <- snapshot_spec[["contents"]][[1]]
+
+# - when retrieving by name
+by_name <- snapshot_first_entry[["name"]]
+
+# - when retrieving by resource
+by_resource <- snapshot_first_entry[["blobs"]]
+```
+
+We can retrieve a data file or blob by its name within the snapshot.
+
+```
+# -- Get data file or blob by name in the snapshot 
+#    GET /api/repositories/<repository>/snapshots/<snapshot>/<name>
+
+output_file_by_name <- file.path( base::getwd(), by_name )
+
+base::writeBin( httr2::request( url_to_auditor ) |>
+                  httr2::req_method("GET") |>
+                  httr2::req_url_path("/api/repositories") |>
+                  httr2::req_url_path_append( repository ) |>
+                  httr2::req_url_path_append( "snapshots" ) |>
+                  httr2::req_url_path_append( snapshot ) |>
+                  httr2::req_url_path_append( by_name ) |>
+                  httr2::req_auth_bearer_token( my_token_in_clear_text ) |>
+                  httr2::req_perform() |>
+                  httr2::resp_body_raw(), 
+                con = output_file_by_name )  
+```
+
+The retrieved file is saved to the path `output_file_by_name`.
+
+We can also retrieve the same file by using the `blobs` reference within the 
+snapshot entry.
+
+```
+# -- Get data file or blob by name in the snapshot 
+#    GET /api/repositories/<repository>/snapshots/<snapshot>/<resource>
+
+output_file_by_blob <- file.path( base::getwd(), by_resource )
+
+base::writeBin( httr2::request( url_to_auditor ) |>
+                  httr2::req_method("GET") |>
+                  httr2::req_url_path("/api/repositories") |>
+                  httr2::req_url_path_append( repository ) |>
+                  httr2::req_url_path_append( "snapshots" ) |>
+                  httr2::req_url_path_append( snapshot ) |>
+                  httr2::req_url_path_append( by_resource ) |>
+                  httr2::req_auth_bearer_token( my_token_in_clear_text ) |>
+                  httr2::req_perform() |>
+                  httr2::resp_body_raw(), 
+                con = output_file_by_blob )  
+```
+
+Same result, but the output file name is now the blob name. Given that the output
+file name is defined in `output_file_by_blob`. set it to what is reasonable as 
+we only demonstrate the concept.
+
+It is also possible to retrieve the data file or blob directly as a repository
+resource and not through the snapshot. In this scenario, we use `by_resource` as
+the name of the entry is only defined within a snapshot.
+
+```
+# -- Get data file or blob as a resource in the repository
+#    GET /api/repositories/<repository>/<resource>
+
+output_file_as_repository_resource <- file.path( base::getwd(), "repository_resource" )
+
+base::writeBin( httr2::request( url_to_auditor ) |>
+                  httr2::req_method("GET") |>
+                  httr2::req_url_path("/api/repositories") |>
+                  httr2::req_url_path_append( repository ) |>
+                  httr2::req_url_path_append( by_resource ) |>
+                  httr2::req_auth_bearer_token( my_token_in_clear_text ) |>
+                  httr2::req_perform() |>
+                  httr2::resp_body_raw(), 
+                con = output_file_as_repository_resource )  
+
+```
+
+Note that in the examples above, we are writing the raw response body as a 
+binary stream. In practice, there are two things to consider. The first is
+verifying that the result was indeed the content and not an error. In the code
+above, we blindly trust that the retrieval was successful.
+
+The second is regarding large files. With this httr2 example, the entire file 
+content is processed through memory. A more optimal approach should be used 
+for retrieving large files.
+
+<br/>
+
+
+##### Edit a repository snapshot
+Editing a snapshot is quite straight forward. In our example, we will create a new
+snapshot using the previous snapshot as a template. We are also introducing the
+possibility to drop a data file or blob in the snapshot specification. Note, that
+dropping a data file or blob from a snapshot does not delete it from the repository.
+
+```
+# -- Get snapshot work area using existing snapshot
+#    GET /api/work/<repository>/<snapshot>
+
+edit_work_area <- httr2::request( url_to_auditor ) |>
+  httr2::req_method("GET") |>
+  httr2::req_url_path("/api/work") |>
+  httr2::req_url_path_append( repository ) |>
+  httr2::req_url_path_append( snapshot ) |>
+  httr2::req_auth_bearer_token( my_token_in_clear_text ) |>
+  httr2::req_perform() |>
+  httr2::resp_body_json()
+
+edit_work_area <- unlist(edit_work_area)
+```
+
+We then drop the named item `mydatablob` from the work area snapshot.
+
+```
+# -- Drop named item 
+#    DELETE /api/work/<work>/<name>
+
+drop_blob <- httr2::request( url_to_auditor ) |>
+  httr2::req_method("DELETE") |>
+  httr2::req_url_path("/api/work") |>
+  httr2::req_url_path_append( edit_work_area ) |>
+  httr2::req_url_path_append( "mydatablob" ) |>
+  httr2::req_auth_bearer_token( my_token_in_clear_text ) |>
+  httr2::req_perform() |>
+  httr2::resp_body_json()
+```
+
+And for good measure, let us add the data file or blob `mtcars.rds` following 
+our previous examples.
+
+```
+# -- Add/Upload files to a work area with attributes
+#    PUT /api/work/<work>/<name>?<attribites>
+#
+#    note: the Content-type header must equal "application/octet-stream"
+
+
+cars_data_file <- file.path( base::getwd(), "data", "mtcars.rds" )
+
+cars_add_data_file <- httr2::request( url_to_auditor ) |>
+  httr2::req_method("PUT") |>
+  httr2::req_url_path("/api/work") |>
+  httr2::req_url_path_append( edit_work_area ) |>
+  httr2::req_url_path_append( base::basename( cars_data_file ) ) |>
+  httr2::req_url_query( "type" = "datafile.rds", 
+                        "class" = "examples", 
+                        "reference" = "mtcars", 
+                        "mime" = "rds"
+  ) |>
+  httr2::req_auth_bearer_token( my_token_in_clear_text ) |>
+  httr2::req_headers( "Content-type" = "application/octet-stream" ) |>
+  httr2::req_body_file( cars_data_file ) |>
+  httr2::req_perform() |>
+  httr2::resp_body_json()
+```
+
+At this point, we commit the work area but using the new snapshot name
+`mysnapshot-02`.
+
+```
+# -- Commit edited work area to the repository
+#    PUT /api/commit/<work>
+
+commit_edits <- httr2::request( url_to_auditor ) |>
+  httr2::req_method("PUT") |>
+  httr2::req_url_path("/api/commit") |>
+  httr2::req_url_path_append( edit_work_area ) |>
+  httr2::req_url_query( "snapshot" = "mysnapshot-02" ) |>
+  httr2::req_auth_bearer_token( my_token_in_clear_text ) |>
+  httr2::req_perform() |>
+  httr2::resp_body_json()
+```
+
+Listing the snapshots in the repository includes the new snapshot.
+
+```
+# -- Get a list of snapshots for a repository
+#    GET /api/repositories/<repository>/snapshots
+
+lst_snapshots <- httr2::request( url_to_auditor ) |>
+  httr2::req_method("GET") |>
+  httr2::req_url_path("/api/repositories") |>
+  httr2::req_url_path_append( repository ) |>
+  httr2::req_url_path_append( "snapshots" ) |>
+  httr2::req_auth_bearer_token( my_token_in_clear_text ) |>
+  httr2::req_perform() |>
+  httr2::resp_body_json()
+```
+
+We can also verify that the edits to the snapshot were saved by retrieving the 
+new snapshot specification.
+
+```
+# -- Get a repository snapshot specification
+#    GET /api/repositories/<repository>/snapshots/<snapshot>
+
+edited_snapshot_spec <- httr2::request( url_to_auditor ) |>
+  httr2::req_method("GET") |>
+  httr2::req_url_path("/api/repositories") |>
+  httr2::req_url_path_append( repository ) |>
+  httr2::req_url_path_append( "snapshots" ) |>
+  httr2::req_url_path_append( "mysnapshot-02" ) |>
+  httr2::req_auth_bearer_token( my_token_in_clear_text ) |>
+  httr2::req_perform() |>
+  httr2::resp_body_json()
+```
+
+<br/>
+
+
+##### Adding data file or blob from another repository snapshot
+The examples so far has always added or uploaded a file to include. We can 
+just as easily add a file as a reference from another snapshot. 
+
+We will use the preceding example as a basis, starting out with `mysnapshot-01` 
+and adding the named item `mtcars` from `mysnapshot-02`, but now giving it 
+the name `cars`. 
+
+Let us start with setting up a work area.
+
+```
+# -- Get snapshot work area using existing snapshot
+#    GET /api/work/<repository>/<snapshot>
+
+edit_work_area2 <- httr2::request( url_to_auditor ) |>
+  httr2::req_method("GET") |>
+  httr2::req_url_path("/api/work") |>
+  httr2::req_url_path_append( repository ) |>
+  httr2::req_url_path_append( snapshot ) |>
+  httr2::req_auth_bearer_token( my_token_in_clear_text ) |>
+  httr2::req_perform() |>
+  httr2::resp_body_json()
+
+edit_work_area2 <- unlist(edit_work_area2)
+```
+
+The next step is to add `mtcars` from `mysnapshot-02` and give it 
+the name `cars`. 
+
+```
+# -- Add data file or blob from a previous snapshot by name
+#    PATCH /api/work/<work>/<reference>?snapshot=<snapshot>&name=<name>
+
+add_existing <- httr2::request( url_to_auditor ) |>
+  httr2::req_method("PATCH") |>
+  httr2::req_url_path("/api/work") |>
+  httr2::req_url_path_append( edit_work_area2 ) |>
+  httr2::req_url_path_append( "mtcars" ) |>
+  httr2::req_url_query( "snapshot" = "mysnapshot-02", 
+                        "name" = "cars" ) |>
+  httr2::req_auth_bearer_token( my_token_in_clear_text ) |>
+  httr2::req_perform() |>
+  httr2::resp_body_json()
+```
+
+Let is commit this update to a new snapshot `mysnapshot-03` and look at the 
+results.
+
+```
+# -- Commit edited work area to the repository
+#    PUT /api/commit/<work>
+
+commit_edits2 <- httr2::request( url_to_auditor ) |>
+  httr2::req_method("PUT") |>
+  httr2::req_url_path("/api/commit") |>
+  httr2::req_url_path_append( edit_work_area2 ) |>
+  httr2::req_url_query( "snapshot" = "mysnapshot-03" ) |>
+  httr2::req_auth_bearer_token( my_token_in_clear_text ) |>
+  httr2::req_perform() |>
+  httr2::resp_body_json()
+
+
+# -- Get a repository snapshot specification
+#    GET /api/repositories/<repository>/snapshots/<snapshot>
+
+amended_snapshot_spec <- httr2::request( url_to_auditor ) |>
+  httr2::req_method("GET") |>
+  httr2::req_url_path("/api/repositories") |>
+  httr2::req_url_path_append( repository ) |>
+  httr2::req_url_path_append( "snapshots" ) |>
+  httr2::req_url_path_append( "mysnapshot-03" ) |>
+  httr2::req_auth_bearer_token( my_token_in_clear_text ) |>
+  httr2::req_perform() |>
+  httr2::resp_body_json()
+```
+
+The snapshot specification `mysnapshot-03` now contains the three data files and
+blobs `mtcars`, `nottem` and `mydatablob`.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
