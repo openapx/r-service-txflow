@@ -21,23 +21,31 @@ The txflow REST API is the storage engine in the Flow data repository and is
 intended for synchronizing with and transferring data to and from the data 
 repository by agents, essentially a classic data mover. 
 
-The txflow REST API is not intended for direct access by individual users. 
+The txflow REST API is not intended for direct access by individual users as it
+knows nothing about permissions. It is left to the host environment where the
+users are provided access to the downloaded and staged data to manage access
+permission.
+
+Direct user access to data repositories and snapshots will be provided through
+the Flow REST API in a future release.
 
 <br/>
 
 ### Repositories and Snapshots and the Work Area
 The txflow REST API implements a commit-style workflow to upload data and create 
-snapshots via a work area that is subsequently committed to the repository.
+and edit snapshots via dedicated work areas. Once all updates are completed, 
+the work area is committed to the repository.
 
-A work area is created specifying a new or existing snapshot. If the snapshot 
-exists, the work area is initiated with the snapshot specification. Existing
-snapshot data files or blobs are not staged in the work area.
+A work area is created specifying a new or existing snapshot as a starting point.
+If the snapshot exists, the work area is initiated with the snapshot specification.
+Existing snapshot data files or blobs are not staged in the work area, only 
+references to them.
 
 All data files or blobs are uploaded to the work area. In addition, a reference
 to a data file or blob that exists in the repository can be added, either using
 the repository resource or a snapshot reference.
 
-Similarly a data file or blob can be deleted from the work area.
+Similarly a data file or blob can be dropped from the work area.
 
 Once the work area is deemed complete and ready, it is committed to the repository.
 
@@ -48,6 +56,8 @@ template for a new snapshot.
 If the commit is successful, the work area is deleted. A failed commit retains 
 the work area.
 
+A data file or blob committed to the repository cannot be deleted in this 
+release.
 
 <br/>
 <br/>
@@ -65,16 +75,18 @@ for additional details.
 <br/>
 
 ### Getting Started
-The txflow service is available either pre-built container image on Docker Hub or as the R package txflow.service.
+The txflow service is available as either a pre-built container image on Docker
+Hub or as the R package txflow.service.
 
 <br/>
 
 
 #### Container Image on Docker Hub
-The txflow service container image will be available for multiple Linux operating system flavors and R versions 
-depending on your organization preference.
+The txflow service container image will be available for multiple Linux operating
+system flavors and R versions depending on your organization preference.
 
-The container images are available on Docker Hub at https://hub.docker.com/repository/docker/openapx/txflowservice/general.
+The container images are available on Docker Hub at
+https://hub.docker.com/repository/docker/openapx/txflowservice/general.
 
 For now, the current effort is focused on Ubuntu and R version 4.4.3.
 
@@ -97,6 +109,8 @@ Start up options are set in the `APP_HOME/service.properties` file.
 `WORKERS` specifies the number of parallel R Plumber worker sessions to launch. 
 A worker equates to the number of requests the service can serve concurrently. 
 Note that Plumber and the way the API has been written, it is one request per R session.
+
+The txflow service utilizes nginx for load balancing and SSL termination.
 
 <br/>
 
@@ -192,15 +206,14 @@ VAULT.DATA = /.vault
 <br/>
 
 ##### Creating API Bearer Token
-The txflow container image is pre-configured to use the local vault to store encoded authentication
-tokens that can be used to authenticate with the API.
+The txflow container image is pre-configured to use the local vault to store 
+encoded authentication tokens that can be used to authenticate with the API.
 
 The default configuration is to look for registered tokens with prefix 
 `/api/auth/txflow/services` in the local vault.
 
 The utility vault API service token utility can be used to create a token
 associated with a named service.
-
 
 ```
 /opt/openapx/utilities/vault-apitoken-service.sh <service name>
@@ -246,7 +259,8 @@ The API uses Bearer tokens to authenticate a connection request using the standa
 ```
 Authorization: Bearer <token>
 ```
-See `cxapp::cxapp_authapi()` and the API Authentication section for the cxapp package for further details and configuration options.
+See `cxapp::cxapp_authapi()` and the API Authentication section for the cxapp package 
+for further details and configuration options.
 
 
 <br/>
@@ -298,11 +312,10 @@ as the only entry.
 ```
 
 The principal associated with the authorization bearer token should be listed
-in the configuration property `API.ADMINS`. If the requestor is not an API admin, 
+in the configuration property `API.ADMINS`. If the requester is not an API admin, 
 HTTP status code 403 with the message `Not permitted` is returned.
 
-
-
+Default is to permit all requesters to create data repositories.
 
 <br/>
 <br/>
@@ -366,8 +379,8 @@ The `name` property is the snapshot name and the `repository` property refers to
 the snapshot's parent repository.
 
 Each data file or blob included in the snapshot is listed in the `contents` array.
-The attributes for the file or blob is are defined within the context of the 
-snapshot and may differ from those attributes defined for snapshots where the same
+The properties for the file or blob is defined within the context of the 
+snapshot and may differ from those properties defined for snapshots where the same
 file or blob is included.
 
 See the API endpoint for Add/Upload Data File or Blob to a Work Area for the
@@ -471,12 +484,12 @@ The `class` can be further used to identify a subclass of `type`.
 
 `referernce` is the common reference to the uploaded file such that given the 
 `type`, `class` and `reference`, like repository entries can be associated. An 
-example could be a repository entry with `type` equal to `datafile`, `class` being
-`sdtm` and the `reference` equal to `ae` to represent an AE SDTM data file.
+example could be a repository entry with `type` equal to `datafile.sas`, `class` being
+`sdtm` and the `reference` equal to `ae` to represent an AE SDTM in SAS data file format.
 
 If `reference` is not specified, the value of `name` without the extension is used.
 
-`mime` is a short reference to the content format. Default is the extention of `name`.
+`mime` is a short reference to the content format. Default is the extension of `name`.
 
 The returned record is in the format of a JSON object.
 
@@ -521,7 +534,7 @@ in the repository associated with the work area.
 
 An existing data file or blob can be added to the work area snapshot as a 
 different named item by specifying the new name using the `name` option. All 
-other data file or blob attributes are retained from the source `snapshot`.
+other data file or blob properties are retained from the source `snapshot`.
 
 The returned record is in the format of a JSON object.
 
@@ -547,7 +560,7 @@ The returned record is in the format of a JSON object.
 DELETE /api/work/<work>/<reference>
 ```
 
-Deletes an existing data file or blob from the specified work area. 
+Drops an existing data file or blob from the specified work area. 
 
 The reference is either the data file or blob `blobs` reference or work area
 `name`.
@@ -571,13 +584,14 @@ operation represented as a boolean.
 PUT /api/commit/<work>
 PUT /api/commit/<work>?<options>
 ```
-Commits the state of the current work area to the work area repository.
+Commits the state of the current work area to the repository associated with the 
+work area.
 
 The option `snapshot` commits the work area to the specified snapshot. If the
-specified snapshot does not exist, a new snapshot is created in the repository.
+specified snapshot does not exist in the repository, a new snapshot is created.
 
 This option permits a work area to be initiated with an existing or new empty 
-snapshot as a template for creating and committing a new snapshot.
+snapshot as a template and committing a new snapshot name.
 
 The returned record is in the format of a JSON array with the commit scope.
 
@@ -623,7 +637,7 @@ The returned record is in the format of a JSON object.
 ```
 
 
-If the auditor service is disabled, the auditor configurtion may not be displayed.
+If the Auditor service is disabled, the Auditor configuration may not be displayed.
 
 
 
@@ -694,6 +708,28 @@ The logging mechanism supports the following configuration options.
 See cxapp::cxapp_log() for additional details.
 
 <br/>
+
+
+#### Auditor
+txflow can use the Auditor service to store audit records that represents actions
+and events occurring within txflow repositories and snapshots.
+
+The Auditor is currently only available as a remote service and uses the following
+configurtion options.
+
+- `AUDITOR` to `enable` or `disable` the Auditor service integration
+- `AUDITOR.ENVIRONMENT` identifies the txflow environment in audit records. If not 
+  defined, the `nodename` as returned by `Sys.info()` is used.
+- `AUDITOR.URL` is the URL (including port if non-standard) to the Auditor service
+- `AUDITOR.TOKEN` is the Auditor access token associated with the txflow service.
+
+Note that the Auditor configuration supports environmental variables and key/secret
+vaults for storing the Auditor access token.
+
+See `cxapp::cxapp_config()` for further details.
+
+
+<br/>
 <br/>
 <br/>
 
@@ -705,7 +741,8 @@ But before we start, we need an access token to authenticate with for each reque
 <br/>
 
 #### Creating an Access Token
-All requests, except a simple ping to the txflow service requires a token to authenticate with.
+All requests, except a simple ping to the txflow service requires a token to 
+authenticate each request.
 
 The standard container image includes a local secrets vault that can be used for exploring the
 service and a simple utility to generate a service token.
@@ -727,9 +764,9 @@ Token
 an4wAtwXuPK0NVk3P7NdPftkaQWFN2UFewbyrqLd
 ```
 
-The token identifies the requestor, so any log entries will use `<name>`. The 
+The token identifies the requester, so any log entries will use `<name>`. The 
 same applies if Auditor is enabled. The `<name>` is the actor, i.e. user or 
-service, that is registered in the audit records as performing the actions.
+service, that is registered in the audit records as performing audited actions.
 
 It is good practice that each service or user is given a unique token so that 
 the requests can be easily identified.
@@ -742,7 +779,7 @@ the txflow service works using plain R and the httr2 package.
 
 To make the examples work, we define two standard objects, the first is the URL
 (including the port number). txflow supports both HTTP (port 80) and HTTPS 
-(port 443). Below, port 81 is used as an example.
+(port 443). Below, the non-standard port 81 is used as an example.
 
 The second object is the access token.
 
@@ -750,13 +787,14 @@ The second object is the access token.
 url_to_auditor <- "http://auditor.example.com:81"
 my_token_in_clear_text <- "<access token>"
 ```
+
 Note that for HTTPS, the container contains a self-signed certificate that is
-generated each time the container is built. If you are using HTTPS, ensure that
-you have disabled root certificate validation.
+generated each time the container is built. If you are using HTTPS and the built-in
+SSL certificates, ensure that you have disabled root certificate validation.
 
 We will also need a few test files to upload. We will use some files with random 
-content to represent a data blobs and a few of the classic R example data frames
-`mtcars` and `nottem` to represent R data files.
+content to represent a data blobs and a few of the classic R example data, such as
+the data frames `mtcars` and `nottem` to represent R data files.
 
 ```
 # -- random data
@@ -778,7 +816,7 @@ base::saveRDS( mtcars, , file = file.path( base::getwd(), "data", "mtcars.rds" )
 base::saveRDS( nottem, , file = file.path( base::getwd(), "data", "nottem.rds" ) )
 ```
 
-There should now be 3 random data blobs and 2 save data frames in our data 
+There should now be 3 random data blobs and 2 saved data frames in our data 
 directory.
 
 
@@ -800,13 +838,13 @@ info <- httr2::request( url_to_auditor ) |>
   httr2::resp_body_json()
 ```  
   
-The result is a list of named entries.
+The result is a list of named entries representing the configuration information.
 
 <br/>
 
 
 ##### Create a Repository
-A data repository is created in a single step
+A data repository is created in a single step.
 
 ```
 # -- Create a named repository
@@ -836,7 +874,7 @@ areas active at any one time and they do persist across sessions until they are
 committed even though they are designed as a temporary staging area for performing
 multiple steps before finally saving the result.
 
-Note we are using the repsitory from the preceeding example. A snapshot can only
+Note we are using the repository from the preceding example. A snapshot can only
 exist within a repository.
 
 ```
@@ -867,9 +905,8 @@ in below examples.
 
 
 ##### Add files to a snapshot work area
-One or more files can be added to the snapshot work area.
-
-The first file to be added is what I would call a data blob.
+One or more files can be added to the snapshot work area. The first file to be
+added is what I would commonly refer to as a data blob.
 
 ```
 # -- Add/Upload files to a work area
@@ -877,7 +914,7 @@ The first file to be added is what I would call a data blob.
 #
 #    note: the Content-type header must equal "application/octet-stream"
 
-# note: using all default attributes
+# note: using all default properties
 # note: using the reference "mydatablob"
 
 data_blob_file <- file.path( base::getwd(), "data", "test-data-01.txt" )
@@ -895,13 +932,13 @@ add_data_blob <- httr2::request( url_to_auditor ) |>
 
 ```
 
-The returned object is the attributes associated with the added/uploaded file. 
-We can set these attributes by specifying them as part of the request. In the 
-example below, we set the attributes `type`, `class`, `reference` and `mime`.
+The returned object is the properties associated with the added/uploaded file. 
+We can set these properties by specifying them as part of the request. In the 
+example below, we set the properties `type`, `class`, `reference` and `mime`.
 
 
 ```
-# -- Add/Upload files to a work area with attributes
+# -- Add/Upload files to a work area with properties
 #    PUT /api/work/<work>/<name>?<attribites>
 #
 #    note: the Content-type header must equal "application/octet-stream"
@@ -932,7 +969,7 @@ add_data_file <- httr2::request( url_to_auditor ) |>
   httr2::resp_body_json()
 ```
 
-Again, the returned object is the attributes associated with the added/uploaded 
+Again, the returned object is the properties associated with the added/uploaded 
 file.
 
 
@@ -941,7 +978,7 @@ file.
 
 
 ##### Commit the work area to the repository
-The snapshot work area needs to be committed to the repositor before it becomes
+The snapshot work area needs to be committed to the repository before it becomes
 available.
 
 ```
@@ -980,10 +1017,10 @@ lst_repositories <- httr2::request( url_to_auditor ) |>
   httr2::resp_body_json()
 ```
 
-The returned object is a list of repositories.
+The returned object from the above example is a list of repositories.
 
 We can just as easily get a list of snapshots within a repository. Note we are
-using the repository created at the beginning of our examples.
+using the repository created at the beginning for our examples.
 
 ```
 # -- Get a list of snapshots for a repository
@@ -1001,7 +1038,7 @@ lst_snapshots <- httr2::request( url_to_auditor ) |>
 
 The returned object is a list of snapshots for our given repository. Note the 
 format of the snapshot reference `<repository>/<snapshot>`, i.e. a snapshot
-can only exist within a given repsitory.
+can only exist within a given repository.
 
 
 <br/>
@@ -1138,10 +1175,12 @@ for retrieving large files.
 
 
 ##### Edit a repository snapshot
-Editing a snapshot is quite straight forward. In our example, we will create a new
-snapshot using the previous snapshot as a template. We are also introducing the
-possibility to drop a data file or blob in the snapshot specification. Note, that
-dropping a data file or blob from a snapshot does not delete it from the repository.
+Editing a snapshot is just as straightforward. 
+
+In our example, we will create a new snapshot using the previous snapshot as
+a template. We are also introducing the possibility to drop a data file or blob
+in the snapshot specification. Note, that dropping a data file or blob from a
+snapshot does not delete it from the repository.
 
 ```
 # -- Get snapshot work area using existing snapshot
@@ -1179,7 +1218,7 @@ And for good measure, let us add the data file or blob `mtcars.rds` following
 our previous examples.
 
 ```
-# -- Add/Upload files to a work area with attributes
+# -- Add/Upload files to a work area with properties
 #    PUT /api/work/<work>/<name>?<attribites>
 #
 #    note: the Content-type header must equal "application/octet-stream"
@@ -1221,7 +1260,7 @@ commit_edits <- httr2::request( url_to_auditor ) |>
   httr2::resp_body_json()
 ```
 
-Listing the snapshots in the repository includes the new snapshot.
+Listing the snapshots in the repository includes our new snapshot.
 
 ```
 # -- Get a list of snapshots for a repository
@@ -1303,7 +1342,7 @@ add_existing <- httr2::request( url_to_auditor ) |>
   httr2::resp_body_json()
 ```
 
-Let is commit this update to a new snapshot `mysnapshot-03` and look at the 
+Let us commit this update to a new snapshot `mysnapshot-03` and look at the 
 results.
 
 ```
@@ -1335,7 +1374,7 @@ amended_snapshot_spec <- httr2::request( url_to_auditor ) |>
 ```
 
 The snapshot specification `mysnapshot-03` now contains the three data files and
-blobs `mtcars`, `nottem` and `mydatablob`.
+blob `mtcars`, `nottem` and `mydatablob`.
 
 
 
