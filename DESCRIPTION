@@ -1,7 +1,7 @@
 Package: txflow.service
 Title: A simple storage REST API for the Flow data repository written in R
 Version: 0.0.1
-Imports: base, utils, methods, tools, plumber (>= 1.3.0), jsonlite (>= 1.8.9), cxapp (>= 0.5.2), digest (>= 0.6.37), cxaudit (>= 0.1.0)
+Imports: base, utils, methods, tools, plumber (>= 1.3.0), jsonlite (>= 1.8.9), cxapp (>= 0.5.2), digest (>= 0.6.37), base64enc (>= 0.1.3), cxaudit (>= 0.1.0)
 Authors@R: 
     person("Magnus", "Mengelbier", , "magnus.mengelbier@gmail.com", role = c("aut", "cre"),
            comment = c(ORCID = "0000-0001-8673-7625"))
