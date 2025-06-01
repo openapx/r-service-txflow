@@ -16,9 +16,14 @@
 txflow_commit <- function( x, snapshot = NULL, as.actor = NULL ) {
 
 
+  # -- configuration
+  cfg <- cxapp::.cxappconfig()
+  
+  try_silent <- ! cfg$option( "mode.debug", unset = FALSE )
+  
   
   # -- connect to work area
-  wrk <- try( txflow.service::txflow_workarea( work = x ), silent = FALSE )
+  wrk <- try( txflow.service::txflow_workarea( work = x ), silent = try_silent )
   
   if ( inherits( wrk, "try-error" ) )
     stop( "Work area for snapshot could not be established" )
@@ -40,7 +45,7 @@ txflow_commit <- function( x, snapshot = NULL, as.actor = NULL ) {
 
   # - import snapshot specification
   
-  snapshot_spec <- try( jsonlite::fromJSON( file.path( wrk_area, snapshot_spec_file, fsep = "/" )), silent = FALSE )
+  snapshot_spec <- try( jsonlite::fromJSON( file.path( wrk_area, snapshot_spec_file, fsep = "/" )), silent = try_silent )
   
   if ( inherits( snapshot_spec, "try-error" ) )
     stop( "Could not import snapshot specification" )
@@ -104,7 +109,7 @@ txflow_commit <- function( x, snapshot = NULL, as.actor = NULL ) {
   # -- import prior inventory 
   prior_inventory <- character(0)
   
-  lst_inv <- try( base::readLines( file.path( wrk_area, "inventory", fsep = "/"), warn = FALSE ), silent = FALSE )
+  lst_inv <- try( base::readLines( file.path( wrk_area, "inventory", fsep = "/"), warn = FALSE ), silent = try_silent )
   
   if ( ! inherits( lst_inv, "try-error" ) ) {
     # - parse inventory
@@ -120,8 +125,6 @@ txflow_commit <- function( x, snapshot = NULL, as.actor = NULL ) {
   }, USE.NAMES = TRUE )    
     
   
-  # -- configuration
-  cfg <- cxapp::.cxappconfig()
   
   
   
@@ -172,7 +175,7 @@ txflow_commit <- function( x, snapshot = NULL, as.actor = NULL ) {
 
     
     # - import blob specification
-    blob_spec <- try( jsonlite::fromJSON( file.path( wrk_area, xfile, fsep = "/" )), silent = FALSE )
+    blob_spec <- try( jsonlite::fromJSON( file.path( wrk_area, xfile, fsep = "/" )), silent = try_silent )
     
     if ( inherits( blob_spec, "try-error") )
       next()
@@ -306,7 +309,7 @@ txflow_commit <- function( x, snapshot = NULL, as.actor = NULL ) {
   # - update snapshot specification 
   
   if ( inherits( try( base::writeLines( jsonlite::toJSON( snapshot_spec, pretty = TRUE, auto_unbox = TRUE ),
-                                        con = file.path( wrk_area, snapshot_spec_file, fsep = "/" )), silent = FALSE ), "try-error") )
+                                        con = file.path( wrk_area, snapshot_spec_file, fsep = "/" )), silent = try_silent ), "try-error") )
     stop( "Could not update snapshot specification" )
 
   
@@ -319,7 +322,7 @@ txflow_commit <- function( x, snapshot = NULL, as.actor = NULL ) {
 
   # -- connect with storage
   
-  strg <- try( txflow.service::txflow_store(), silent = FALSE )
+  strg <- try( txflow.service::txflow_store(), silent = try_silent )
   
   if ( inherits(strg, "try-error") )
     stop( "Storage not available" )
@@ -358,7 +361,7 @@ txflow_commit <- function( x, snapshot = NULL, as.actor = NULL ) {
     
     # - update specification 
 
-    blob_spec <- try( jsonlite::fromJSON( blob_spec_file ), silent = FALSE )
+    blob_spec <- try( jsonlite::fromJSON( blob_spec_file ), silent = try_silent )
     
     if ( inherits( blob_spec, "try-error") || ! "name" %in% base::names(blob_spec) )
       next()
@@ -377,7 +380,7 @@ txflow_commit <- function( x, snapshot = NULL, as.actor = NULL ) {
   # - save updates to snapshot spec
   
   if ( inherits( try( base::writeLines( jsonlite::toJSON( snapshot_spec, pretty = TRUE, auto_unbox = TRUE ),
-                                        con = file.path( wrk_area, snapshot_spec_file, fsep = "/" )), silent = FALSE ), "try-error" ) )
+                                        con = file.path( wrk_area, snapshot_spec_file, fsep = "/" )), silent = try_silent ), "try-error" ) )
     stop( "Snapshot specification could not be initiated in the work area")
   
   
@@ -401,7 +404,7 @@ txflow_commit <- function( x, snapshot = NULL, as.actor = NULL ) {
   
   # - commit 
 
-  commit_rslt <- try( strg$commit( commit_files, repository = commit_scope["repository"], overwrite = TRUE ), silent = FALSE )
+  commit_rslt <- try( strg$commit( commit_files, repository = commit_scope["repository"], overwrite = TRUE ), silent = try_silent )
 
 
   # - auditor
@@ -426,7 +429,7 @@ txflow_commit <- function( x, snapshot = NULL, as.actor = NULL ) {
 
 
     # create main audit record
-    audit_rec <- try( cxaudit::cxaudit_record( audit_rec_info[ ! base::startsWith( base::names(audit_rec_info), "_" ) ] ), silent = FALSE )
+    audit_rec <- try( cxaudit::cxaudit_record( audit_rec_info[ ! base::startsWith( base::names(audit_rec_info), "_" ) ] ), silent = try_silent )
 
     if ( inherits( audit_rec, "try-error" ) )
       stop( "Could not create an audit record for blob")
@@ -438,7 +441,7 @@ txflow_commit <- function( x, snapshot = NULL, as.actor = NULL ) {
                                                     value = ifelse( "value" %in% base::names(xattr), xattr[["value"]], ""), 
                                                     label = ifelse( "label" %in% base::names(xattr), xattr[["label"]], xattr[["key"]]),
                                                     qualifier = ifelse( "qualifier" %in% base::names(xattr), xattr[["qualifier"]], "") ), 
-                            silent = FALSE ), "try-error" ) )
+                            silent = try_silent ), "try-error" ) )
           stop( "Could not register attributer for audit record")
     
     
@@ -450,7 +453,7 @@ txflow_commit <- function( x, snapshot = NULL, as.actor = NULL ) {
   }
 
 
-  audit_commit <- try( cxaudit::cxaudit_commit( audit_records ), silent = FALSE )
+  audit_commit <- try( cxaudit::cxaudit_commit( audit_records ), silent = try_silent )
 
   if ( inherits( audit_commit, "try-error") || ! audit_commit )
     stop( "Failed to commit audit records")
