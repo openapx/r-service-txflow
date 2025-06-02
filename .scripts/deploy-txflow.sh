@@ -177,7 +177,7 @@ echo "   - install locations (first in list)"
 Rscript -e "cat( c( paste0( \"   \", .libPaths()), \"   --\"), sep = \"\n\" )"
 
 echo "   - install R package dependencies"
-Rscript -e "install.packages( c( \"sodium\", \"openssl\", \"plumber\", \"jsonlite\",  \"digest\", \"uuid\", \"httr2\"), type = \"source\", destdir = \"/sources/R-packages\" )" >> /logs/openapx/txflow/install-r-packages.log 2>&1
+Rscript -e "install.packages( c( \"sodium\", \"openssl\", \"plumber\", \"jsonlite\",  \"digest\", \"uuid\", \"httr2\", \"base64enc\"), type = \"source\", destdir = \"/sources/R-packages\" )" >> /logs/openapx/txflow/install-r-packages.log 2>&1
 
 echo "   - install R package cxapp"
 Rscript -e "install.packages( \"/sources/R-packages/${CXAPP_SOURCE}\", type = \"source\", INSTALL_opts = \"--install-tests\" )" >> /logs/openapx/txflow/install-r-packages.log 2>&1
