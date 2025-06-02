@@ -28,6 +28,11 @@ txflow_dropfile <- function( x, work = NULL ) {
     stop( "Work area missing or invalid")
   
   
+  # -- config
+  cfg <- cxapp::.cxappconfig()
+  try_silent <- ! cfg$option( "mode.debug", unset = FALSE )
+  
+  
   
   # -- connect work area
   wrk <- txflow.service::txflow_workarea( work = work )
@@ -44,7 +49,7 @@ txflow_dropfile <- function( x, work = NULL ) {
   entry_blobs <- character(0)
   
   
-  entry_lst <- try( base::readLines( file.path( wrk_path, "entries")), silent = FALSE )
+  entry_lst <- try( base::readLines( file.path( wrk_path, "entries")), silent = try_silent )
   
   if ( ! inherits( entry_lst, "try-error") ) {
     
@@ -98,7 +103,7 @@ print(entry_blobs)
   
   if ( ! inherits( entry_lst, "try-error" ) &&
        inherits( try( base::writeLines( entry_lst,
-                                        con = file.path( wrk_path, "entries", fsep = "/" )), silent = FALSE ), "try-error" ) )
+                                        con = file.path( wrk_path, "entries", fsep = "/" )), silent = try_silent ), "try-error" ) )
     stop( "List of entries could not be amended")
   
   
