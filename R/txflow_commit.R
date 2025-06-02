@@ -92,9 +92,6 @@ txflow_commit <- function( x, snapshot = NULL, as.actor = NULL ) {
 
   
     
-  # note: at this point ... we know repository and snapshot
-  
-  
 
   # - specified snapshot is commit scope 
   if ( ! txflow.service::txflow_validname( paste(commit_scope, collapse = "/"), context = "snapshot") )
@@ -102,8 +99,32 @@ txflow_commit <- function( x, snapshot = NULL, as.actor = NULL ) {
   
   
   
+  # -- snapshot spec not equal to commit scope
+  
+  if ( snapshot_spec_file != paste0( "snapshot-", commit_scope[["snapshot"]], ".json" ) ) {
+
+    old_spec <- file.path( wrk_area, snapshot_spec_file, fsep = "/" )
+    new_spec <- file.path( wrk_area, paste0( "snapshot-", commit_scope[["snapshot"]], ".json" ), fsep = "/" )
+    
+    if ( ! file.rename( old_spec, new_spec) )
+      stop( "Could not stage specification as a new snapshot" )
+    
+    
+    # note: new spec file
+    snapshot_spec_file <- base::basename(new_spec)
+  }
+  
+  
+  
+
+  # note: at this point ... we know repository and snapshot
+  
+    
+  
+  
+  
   # -- purge any existing snapshot contents
-  snapshot_spec[["contents"]] <- list()
+  snapshot_spec[["members"]] <- list()
   
   
   # -- import prior inventory 
@@ -161,7 +182,7 @@ txflow_commit <- function( x, snapshot = NULL, as.actor = NULL ) {
   # - initiate commit list
   lst_commit <- character(0)
   
-  
+  lst_named_blobs <- character(0)
   
   
   # - process blobs and actions
@@ -194,8 +215,13 @@ txflow_commit <- function( x, snapshot = NULL, as.actor = NULL ) {
     } # end of if-statement for deleted blobs
 
 
+    # -- conflict ... name should be unique so use first find
+    if ( blob_spec[["name"]] %in% lst_named_blobs )
+      next()
+    
+    
     # - add blob to specification
-    snapshot_spec[["contents"]][[ blob_spec[["name"]] ]] <- blob_spec
+    snapshot_spec[["members"]][[ length(snapshot_spec[["members"]]) + 1 ]] <- blob_spec
 
     
     # - retain in blob spec
@@ -282,30 +308,12 @@ txflow_commit <- function( x, snapshot = NULL, as.actor = NULL ) {
     # - clean up
     base::rm( list = "blob_spec" )
         
-  }
+  }  #  end of if-statement adding blobs to snapshot spec
   
   
   
-  
-  
-  # - remove conflicting snapshot spec 
-  
-  if ( snapshot_spec_file != paste0( "snapshot-", commit_scope[["snapshot"]], ".json" ) ) {
-    
-    
-    old_spec <- file.path( wrk_area, snapshot_spec_file, fsep = "/" )
-    new_spec <- file.path( wrk_area, paste0( "snapshot-", commit_scope[["snapshot"]], ".json" ), fsep = "/" )
-    
-    if ( ! file.rename( old_spec, new_spec) )
-      stop( "Could not stage specification as a new snapshot" )
-    
-
-    # note: new spec file
-    snapshot_spec_file <- base::basename(new_spec)
-  }
   
 
-    
   # - update snapshot specification 
   
   if ( inherits( try( base::writeLines( jsonlite::toJSON( snapshot_spec, pretty = TRUE, auto_unbox = TRUE ),
@@ -349,42 +357,30 @@ txflow_commit <- function( x, snapshot = NULL, as.actor = NULL ) {
   lst_blobs <- lst_objs[ base::trimws(tools::file_ext(lst_objs)) == "" ]
   
   
-  for ( xblob in lst_blobs ) {
+  for ( xblob in snapshot_spec[["members"]] ) {
     
 
-    blob_spec_file <- file.path( wrk_area, paste0( xblob, ".json"), fsep = "/" )
+    blob_spec_file <- file.path( wrk_area, paste0( xblob[["blobs"]], ".json"), fsep = "/" )
     
     # - no blob specification ... nothing to do
     if ( ! file.exists( blob_spec_file ) )
       next()
     
     
-    # - update specification 
-
-    blob_spec <- try( jsonlite::fromJSON( blob_spec_file ), silent = try_silent )
+    # - add blob spec file
+    commit_files <- append( commit_files, blob_spec_file )
     
-    if ( inherits( blob_spec, "try-error") || ! "name" %in% base::names(blob_spec) )
-      next()
-
-    snapshot_spec[["contents"]][[ base::unname(blob_spec[["name"]]) ]] <- blob_spec
-
-    # - register blob files to commit 
-    commit_files <- append( commit_files, 
-                            c( file.path( wrk_area, xblob, fsep = "/"),
-                               file.path( wrk_area, base::basename(blob_spec_file), fsep = "/" ) ) )    
+    
+    # - add blob
+    #   note: blob might be missing if you are adding item by reference
+    if ( file.exists( file.path( wrk_area, xblob[["blobs"]], fsep = "/") ) )
+      commit_files <- append( commit_files, 
+                              file.path( wrk_area, xblob[["blobs"]], fsep = "/") )
     
   }  # end of for-statement for blobs in work area
   
   
   
-  # - save updates to snapshot spec
-  
-  if ( inherits( try( base::writeLines( jsonlite::toJSON( snapshot_spec, pretty = TRUE, auto_unbox = TRUE ),
-                                        con = file.path( wrk_area, snapshot_spec_file, fsep = "/" )), silent = try_silent ), "try-error" ) )
-    stop( "Snapshot specification could not be initiated in the work area")
-  
-  
-
   # - add spec as last item to commit
   commit_files <- append( commit_files, 
                           file.path( wrk_area, snapshot_spec_file, fsep = "/" ) )
