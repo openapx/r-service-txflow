@@ -14,9 +14,16 @@ txflow_repository <- function( x, as.actor = NULL ) {
        ! txflow.service::txflow_validname(x, context = "repository") )
     stop( "Repository name missing or invalid")
   
+  
+  
+  # - configuration
+  cfg <- cxapp::.cxappconfig()
+  
+  try_silent <- ! cfg$option( "mode.debug", unset = FALSE )
+  
     
   # -- connect storage 
-  store <- try( txflow.service::txflow_store(), silent = FALSE )
+  store <- try( txflow.service::txflow_store(), silent = try_silent )
   
   if ( inherits(store, "try-error") )
     return(invisible(list()))
@@ -24,14 +31,14 @@ txflow_repository <- function( x, as.actor = NULL ) {
   
 
   # -- create repository ... if it does not exist
-  rslt <- try( store$repository( x, create = TRUE ), silent = FALSE )
+  rslt <- try( store$repository( x, create = TRUE ), silent = try_silent )
   
   if ( is.null(rslt) )
     stop( "Could not create repository" )
   
   
   # -- audit details
-  cfg <- cxapp::.cxappconfig()
+  
   
   if ( cfg$option( "auditor", unset = FALSE ) ) {
     

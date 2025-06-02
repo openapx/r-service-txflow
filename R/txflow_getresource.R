@@ -25,13 +25,21 @@ txflow_getresource <- function( x, as.actor = NULL ) {
        (length(x) != 1) || (base::trimws(x) == "") )
     return(invisible(NULL))
   
+
+  
+  # - configuration
+  cfg <- cxapp::.cxappconfig()
+  
+  try_silent <- ! cfg$option( "mode.debug", unset = FALSE )
+  
+  
   
   # -- connect to storage
   store <- txflow.service::txflow_store()
   
   
   # -- resource
-  obj <- try( store$getresource(x), silent = FALSE )
+  obj <- try( store$getresource(x), silent = try_silent )
   
   if ( inherits( obj, "try-error") || is.null(obj) )
     return(invisible(NULL))
@@ -39,12 +47,9 @@ txflow_getresource <- function( x, as.actor = NULL ) {
 
   # -- auditing
 
-  # - configuration
-  cfg <- cxapp::.cxappconfig()
-  
   
   # - get blob reference
-  spec_file <- try( store$getreference(x), silent = FALSE )
+  spec_file <- try( store$getreference(x), silent = try_silent )
 
   if ( inherits( spec_file, "try-error") || is.null(spec_file) )
     return(invisible(NULL))
@@ -52,7 +57,7 @@ txflow_getresource <- function( x, as.actor = NULL ) {
     
   # - import blob reference
   
-  blob_spec <- try( jsonlite::fromJSON( spec_file ), silent = FALSE )
+  blob_spec <- try( jsonlite::fromJSON( spec_file ), silent = try_silent )
   
   if ( inherits( blob_spec, "try-error") )
     return(invisible(NULL))
@@ -67,13 +72,13 @@ txflow_getresource <- function( x, as.actor = NULL ) {
                                                                     blob_spec[["class"]], blob_spec[["reference"]], "as", blob_spec[["name"]], 
                                                                     "from repository", utils::head( unlist(strsplit(x, "/", fixed = TRUE)), n = 1 ) ),
                                                    "actor"  = ifelse( ! is.null(as.actor), as.actor, Sys.info()["user"] ) ) ), 
-                    silent = FALSE )
+                    silent = try_silent )
 
   
   if ( inherits( audit_rec, "try-error") )
     stop( "Could not create audit record" )
   
-  audit_commit <- try( cxaudit::cxaudit_commit( list( audit_rec ) ), silent = FALSE )
+  audit_commit <- try( cxaudit::cxaudit_commit( list( audit_rec ) ), silent = try_silent )
   
   if ( inherits( audit_commit, "try-error") || is.null(audit_commit) || ! audit_commit )
     stop( "Failed to commit audit record" )
