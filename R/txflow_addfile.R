@@ -38,7 +38,8 @@ txflow_addfile <- function( x, work = NULL, attrs = NULL ) {
   
    
   
-  blob_meta <- list( "type" = "datafile", 
+  blob_meta <- list( "version" = "1.0.0", 
+                     "type" = "datafile", 
                      "class" = "datafile", 
                      "reference" = base::tolower(tools::file_path_sans_ext(base::basename(x))),
                      "sha" = digest::digest( x, algo = "sha1", file = TRUE ), 
