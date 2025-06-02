@@ -378,7 +378,7 @@ a data repository.
   "version": "1.0.0",
   "name": "<content type>",
   "repository": "<content class>",
-  "contents": [
+  "members": [
      { 
         "version": "<data file or blob specification version>",
         "type": "<content type>",
@@ -397,7 +397,7 @@ a data repository.
 `version` in the main object represents the snapshot specification schema version. 
 It is reserved for future use allowing extended metadata, properties and attributes
 for the snapshot specification. `version` only applies to the snapshot specification
-and not the schema version of `contents` entries or specific REST API calls and 
+and not the schema version of `members` entries or specific REST API calls and 
 features. _It does not represent the version of the snapshot specification_. 
 
 `name` is the snapshot name, case insensitive. The snapshot name  
@@ -414,7 +414,7 @@ the repository name or reference.
 The `repository` is the name of the snapshot parent data repository. A snapshot 
 can only be a member of a single repository.
 
-`contents` is an array of snapshot members. All member properties and attributes
+`members` is an array of snapshot members. All member properties and attributes
 except the `name` entry are copies of the data file or blob specification. 
 
 The default member `name` is the `name` property recorded within the data file and
@@ -541,7 +541,7 @@ The returned record is in the format of a JSON object.
   "version": "1.0.0",
   "name": "<snapshot name>",
   "repository": "<repository>",
-  "contents": [
+  "members": [
     {
       "version": "<data file or blob specification version>",
       "type": "<content type>",
@@ -562,7 +562,7 @@ The `version` is an internal schema version number.
 The `name` property is the snapshot name and the `repository` property refers to
 the snapshot's parent repository.
 
-Each data file or blob included in the snapshot is listed in the `contents` array.
+Each data file or blob included in the snapshot is listed in the `members` array.
 The properties for the file or blob is defined within the context of the 
 snapshot and may differ from those properties defined for snapshots where the same
 file or blob is included.
@@ -1310,7 +1310,7 @@ is a nested list of named entries since we used `httr2::resp_body_json()` as
 part of the request.
 
 ```
-snapshot_first_entry <- snapshot_spec[["contents"]][[1]]
+snapshot_first_entry <- snapshot_spec[["members"]][[1]]
 
 # - when retrieving by name
 by_name <- snapshot_first_entry[["name"]]
