@@ -7,7 +7,7 @@
 txflow_store()
 }
 \value{
-A tx flow storage object
+A txflow storage object
 }
 \description{
 Utility function to connect the txflow storage configuration

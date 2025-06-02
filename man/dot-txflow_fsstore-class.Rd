@@ -6,7 +6,21 @@
 \alias{.txflow_fsstore}
 \title{A reference class representing txflow store using the local file system}
 \description{
-A reference class representing txflow store using the local file system
+A collection of internal methods to manage data file and blobs stored using
+the local file system.
+
+The storage relies on the local file sysmte with each data repository
+represented as a directory and data files and blobs stored in the
+root of the repository directory. The directory is named as the repository
+name without a prefix making using the repository parent directory a
+shared storage area not practical.
+
+The storage uses the following configuration options.
+
+\itemize{
+\item \code{TXFLOW.STORE} equal to \code{LOCAL}, case insensitive
+\item \code{TXFLOW.DATA} specifying the parent directory for repositories
+}
 }
 \section{Fields}{
 
