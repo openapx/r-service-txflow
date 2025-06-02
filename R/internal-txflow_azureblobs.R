@@ -367,11 +367,11 @@
                           silent = .self$.attr[["mode.try.silent"]] )
     
     if ( inherits( snapshot_spec, "try-error") ||
-         ! "contents" %in% base::names(snapshot_spec) ||
-         ( length(snapshot_spec[["contents"]]) == 0  ) )
+         ! "members" %in% base::names(snapshot_spec) ||
+         ( length(snapshot_spec[["members"]]) == 0  ) )
       return(invisible(NULL))
     
-    for ( xentry in snapshot_spec[["contents"]] ) 
+    for ( xentry in snapshot_spec[["members"]] ) 
       if ( resource_spec[["resource"]] %in% xentry[ c( "blobs", "name" ) ] ) {
         resource_blob <- xentry[["blobs"]]
         break()
@@ -477,13 +477,12 @@
                           silent = .self$.attr[["mode.try.silent"]] )
     
     if ( inherits( snapshot_spec, "try-error") ||
-         ! "contents" %in% base::names(snapshot_spec) ||
-         ( length(snapshot_spec[["contents"]]) == 0  ) )
+         ! "members" %in% base::names(snapshot_spec) ||
+         ( length(snapshot_spec[["members"]]) == 0  ) )
       return(invisible(NULL))
     
-    print(snapshot_spec[["contents"]])
-    
-    for ( xentry in snapshot_spec[["contents"]] ) {
+
+    for ( xentry in snapshot_spec[["members"]] ) {
       
       #  print(xentry)
       

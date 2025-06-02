@@ -327,13 +327,13 @@
   
   
   
-  if ( ! "contents" %in% base::names(snapshot_spec) )
+  if ( ! "members" %in% base::names(snapshot_spec) )
     return(invisible(NULL))
        
   
   # - look for blob reference in contents
 
-  for ( xentry in snapshot_spec[["contents"]] ) {
+  for ( xentry in snapshot_spec[["members"]] ) {
     
     # note: cannot resolve blob 
     if ( ! "blobs" %in% base::names(xentry) )
@@ -443,13 +443,13 @@
   
   
   
-  if ( ! "contents" %in% base::names(snapshot_spec) )
+  if ( ! "members" %in% base::names(snapshot_spec) )
     return(invisible(NULL))
   
   
   # - look for blob reference in contents
   
-  for ( xentry in snapshot_spec[["contents"]] ) {
+  for ( xentry in snapshot_spec[["members"]] ) {
     
     # note: cannot resolve blob 
     if ( ! "blobs" %in% base::names(xentry) )
