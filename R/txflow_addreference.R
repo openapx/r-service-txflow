@@ -39,6 +39,11 @@ txflow_addreference <- function( x, work = NULL, name = NULL ) {
     stop( "Name is missing or invalid")
   
   
+  # -- config
+  cfg <- cxapp::.cxappconfig()
+  try_silent <- ! cfg$option( "mode.debug", unset = FALSE )
+  
+  
   
   # -- connect work area
   wrk <- txflow.service::txflow_workarea( work = work )
@@ -57,7 +62,7 @@ txflow_addreference <- function( x, work = NULL, name = NULL ) {
     stop( "Work area requires a snapshot specification" )
 
 
-  snapshot_spec <- try( jsonlite::fromJSON( file.path( wrk_path, lst_files, fsep = "/" ) ), silent = FALSE )
+  snapshot_spec <- try( jsonlite::fromJSON( file.path( wrk_path, lst_files, fsep = "/" ) ), silent = try_silent )
   
   if ( inherits(snapshot_spec, "try-error") )
     stop( "Work area requires a snapshot specification" )
@@ -108,14 +113,14 @@ txflow_addreference <- function( x, work = NULL, name = NULL ) {
 
   
   # -- get reference 
-  ref_path <- try( strg$getreference( paste( resource, collapse = "/") ), silent = FALSE )
+  ref_path <- try( strg$getreference( paste( resource, collapse = "/") ), silent = try_silent )
 
   if ( inherits( ref_path, "try-error" ) || is.null(ref_path) )
     return(invisible(NULL))
   
   
   # -- import reference
-  resource_spec <- try( jsonlite::fromJSON( ref_path ), silent = FALSE ) 
+  resource_spec <- try( jsonlite::fromJSON( ref_path ), silent = try_silent ) 
 print(resource_spec)   
   if ( inherits(resource_spec, "try-error") )
     return(invisible(NULL))
@@ -138,7 +143,7 @@ print(resource_spec)
   if ( file.exists( file.path( wrk_path, "entries", fsep = "/" ) ) ) {
 
     # - get list of current entries
-    lst_entries <- try( base::readLines( file.path( wrk_path, "entries", fsep = "/" ), warn = FALSE ), silent = FALSE )
+    lst_entries <- try( base::readLines( file.path( wrk_path, "entries", fsep = "/" ), warn = FALSE ), silent = try_silent )
 
 
     # - parse entry list
@@ -176,7 +181,7 @@ print(resource_spec)
 
   if ( ! inherits( entry_lst, "try-error" ) &&
        inherits( try( base::writeLines( entry_lst,
-                                        con = file.path( wrk_path, "entries", fsep = "/" )), silent = FALSE ), "try-error" ) )
+                                        con = file.path( wrk_path, "entries", fsep = "/" )), silent = try_silent ), "try-error" ) )
     stop( "List of entries could not be amended")
 
   
@@ -185,7 +190,7 @@ print(resource_spec)
   # -- save resource specification
   if ( inherits( try( base::writeLines( jsonlite::toJSON( resource_spec, pretty = TRUE, auto_unbox = TRUE), 
                                         con = file.path( wrk_path, paste0( resource_spec[["blobs"]], ".json"), fsep = "/" ) ),
-                      silent = FALSE ),
+                      silent = try_silent ),
                  "try-error") )
     stop( "Could not save resource specification")
   

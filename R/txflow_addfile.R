@@ -27,6 +27,10 @@ txflow_addfile <- function( x, work = NULL, attrs = NULL ) {
     stop( "One or more named attributes invalid" )
        
   
+  # -- config
+  cfg <- cxapp::.cxappconfig()
+  try_silent <- ! cfg$option( "mode.debug", unset = FALSE )
+  
   
   # -- connect work area
   wrk <- txflow.service::txflow_workarea( work = work )
@@ -77,7 +81,7 @@ txflow_addfile <- function( x, work = NULL, attrs = NULL ) {
   if ( file.exists( file.path( wrk_path, "entries", fsep = "/" ) ) ) {
 
     # - get list of current entries    
-    lst_entries <- try( base::readLines( file.path( wrk_path, "entries", fsep = "/" ), warn = FALSE ), silent = FALSE )
+    lst_entries <- try( base::readLines( file.path( wrk_path, "entries", fsep = "/" ), warn = FALSE ), silent = try_silent )
 
     # - parse entry list
     entry_blobs <- gsub( "^(.*)\\s.*$", "\\1", lst_entries )
@@ -115,7 +119,7 @@ txflow_addfile <- function( x, work = NULL, attrs = NULL ) {
   
   if ( ! inherits( entry_lst, "try-error" ) && 
        inherits( try( base::writeLines( entry_lst,
-                                        con = file.path( wrk_path, "entries", fsep = "/" )), silent = FALSE ), "try-error" ) ) 
+                                        con = file.path( wrk_path, "entries", fsep = "/" )), silent = try_silent ), "try-error" ) ) 
     stop( "List of entries could not be amended")
       
 
@@ -143,7 +147,7 @@ txflow_addfile <- function( x, work = NULL, attrs = NULL ) {
   # -- write metadata
   
   if ( inherits( try( base::writeLines( jsonlite::toJSON( blob_meta, pretty = TRUE, auto_unbox = TRUE ),
-                                        con = file.path( wrk_path, paste0( blob_meta[["blobs"]], ".json" ), fsep = "/" )), silent = FALSE ), "try-error" ) )
+                                        con = file.path( wrk_path, paste0( blob_meta[["blobs"]], ".json" ), fsep = "/" )), silent = try_silent ), "try-error" ) )
     stop( "File details could not be added to work area")
   
 
