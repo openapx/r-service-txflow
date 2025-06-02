@@ -72,6 +72,13 @@ txflow_addfile <- function( x, work = NULL, attrs = NULL ) {
 
   
   
+  # -- valid type
+  
+  if ( ! txflow.service::txflow_validtype( blob_meta[["type"]] ) )
+    stop( "Specified type invalid")
+
+  
+  
   # -- check for existing like named items
 
   # - list of entry blobs
