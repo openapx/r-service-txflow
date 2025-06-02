@@ -612,15 +612,41 @@ The request requires that the Content-Type header of the request is equal to
 
 
 
-#### Create a New Work Area
+
+#### List New Work Areas
 ```
-GET /api/work/<repository>/<snapshot>
+GET /api/work
 ```
 
-Creates a new work area for a specified `repository` and `snapshot`. If the 
-snapshot exists in the specified repository, the work area is initialized with
+Retrieves a list of current work areas
+
+The returned record is in the format of a JSON array of work area names.
+
+```
+[ 
+  "new-workarea"
+]
+```
+
+<br/>
+<br/>
+
+
+
+
+
+#### Create a New Work Area
+```
+POST /api/work
+```
+
+Creates a new work area for a specified `repository` and `snapshot` (POST parameters). 
+
+If `snapshot` is not specified, `undefined` is used as the snapshot reference.
+
+If the snapshot exists in the specified repository, the work area is initialized with
 the snapshot specification. Any existing data files or blobs for the specification
-is not staged in the work area.
+are not staged in the work area.
 
 If the snapshot does not exist, a new snapshot specification is created in the
 work area.
@@ -644,6 +670,25 @@ as the only entry.
 <br/>
 <br/>
 
+
+
+#### Drop a New Work Area
+```
+DELETE /api/work/<work>
+```
+
+Blindly drops the specified work area.
+
+A message with the result of the operation in JSON format is returned.
+
+```
+{ 
+  "message": "<message>"
+}
+```
+
+<br/>
+<br/>
 
 
 #### Add/Upload Data File or Blob to a Work Area 

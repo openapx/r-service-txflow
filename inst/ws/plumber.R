@@ -607,21 +607,15 @@ function( repo, snapshot, reference, req, res ) {
 
 
 
-
-
 #* Create a working copy
 #*
-#* @get /api/work/<repository>/<snapshot>
+#* @post /api/work
 #* 
-#* @param repsitory Respository reference
-#* @param snapshot Snapshot reference
-#*
-#*
-#* @response 200 OK
+#* @response 201 Created
 #* @response 400 Bad Request
 #* @response 500 Internal Error
 
-function( repository, snapshot, req, res ) {
+function( req, res ) {
   
   
   cfg <- cxapp::.cxappconfig()
@@ -677,36 +671,246 @@ function( repository, snapshot, req, res ) {
   
 
   # -- get work area reference
+
+  attrs <- character(0)
   
-  snapshot_ref <- paste( repository, snapshot, sep = "/" )
+  attrs <- append( attrs, 
+                   unlist( req$argsBody, use.names = TRUE ) )
+  
+  # - standardize on lower case 
+  base::names(attrs) <- base::tolower(base::names(attrs))
+  
+  
+  snapshot_ref <- NA
+  
+  
+  if ( all( c( "repository", "snapshot" ) %in% base::names(attrs) ) )
+    snapshot_ref <- paste( attrs[ c( "repository", "snapshot") ], collapse = "/" )
+  
+  if ( ! "repository" %in% base::names(attrs) && "snapshot" %in% base::names(attrs) )
+    snapshot_ref <- base::unname(attrs["snapshot"])
+    
+
+  if ( "repository" %in% base::names(attrs) && ! "snapshot" %in% base::names(attrs) )
+    snapshot_ref <- paste( attrs[ "repository" ], "undefined", sep = "/" )
+  
+
+  if ( is.na(snapshot_ref) || ! txflow.service::txflow_validname( snapshot_ref, context = "snapshot") ) {
+    cxapp::cxapp_log( "Work area request incomplete", attr = log_attributes)
+    res$status <- 400  # Bad request
+    return(list( "error" = "Missing repository and/or snapshot reference" ))
+  }
+    
+    
+  
+  # -- create work area
   
   wrk <- try( txflow.service::txflow_workarea( snapshot = snapshot_ref ), silent = FALSE )
 
   if ( inherits( wrk, "try-error" ) || is.null(wrk) ) {
 
-    msg <- ifelse( is.null(snapshot_ref), 
-                   "Failed to create empty work area", 
+    msg <- ifelse( is.na(snapshot_ref),
+                   "Failed to create empty work area",
                    paste("Failed to create work area associated with snapshot", snapshot_ref ) )
-    
+
     cxapp::cxapp_log( msg, attr = log_attributes )
-    res$status <- 500  # Not Found
+    res$status <- 500  # Internal error
     return( list( "error" = msg ) )
   }
-    
-  
 
-  res$status <- 200  # OK
+
   
+  res$status <- 201  # Created
+
   res$setHeader( "content-type", "application/json" )
   res$body <- jsonlite::toJSON( as.list(wrk), auto_unbox = TRUE, pretty = TRUE )
-  
-  cxapp::cxapp_log( ifelse( is.null(snapshot_ref), 
+
+  cxapp::cxapp_log( ifelse( is.null(snapshot_ref),
                             paste( "Created empty work area", wrk),
                             paste( "Created work area", wrk, "associated with snapshot", snapshot_ref ) ),
                     attr = log_attributes )
+
+  
+  return(res)
+}
+
+
+
+
+#* List working copies
+#*
+#* @get /api/work
+#* 
+#* @response 200 OK
+#* @response 500 Internal Error
+
+function( work, req, res ) {
+  
+  
+  cfg <- cxapp::.cxappconfig()
+  
+  
+  log_attributes <- c( base::toupper(req$REQUEST_METHOD), 
+                       req$REMOTE_ADDR, 
+                       req$PATH_INFO )
+  
+  
+  
+  # -- Authorization
+  
+  if ( ! "HTTP_AUTHORIZATION" %in% names(req) ) {
+    cxapp::cxapp_log("Authorization header missing", attr = log_attributes)
+    res$status <- 401  # Unauthorized
+    return("Authorization header missing")
+  }
+  
+  
+  auth_result <- try( cxapp::cxapp_authapi( req$HTTP_AUTHORIZATION ), silent = TRUE )
+  
+  if ( inherits( auth_result, "try-error" ) ) {
+    cxapp::cxapp_log("Authorization failed", attr = log_attributes)
+    res$status <- 401  # Unauthorized
+    return("Authorization failed")
+  }
+  
+  
+  if ( ! auth_result ) {
+    cxapp::cxapp_log("Access denied", attr = log_attributes)
+    res$status <- 403  # Forbidden
+    return("Access denied")
+  }
+  
+  
+  # -- identify authorized service or user 
+  service_principal <- ifelse( ! is.null( attr(auth_result, "principal") ), attr(auth_result, "principal"), "unkown" )
+  
+  
+  # - log authentication
+  
+  cxapp::cxapp_log( paste( "Authorized", service_principal ),
+                    attr = log_attributes )
+  
+  
+  # - add principal to log attributes
+  if ( ! is.null( attr(auth_result, "principal") ) )
+    log_attributes <- append( log_attributes, attr(auth_result, "principal") )
+  
+  
+  
+  
+  
+  
+  # -- list work areas
+  
+  wrk <- try( txflow.service::txflow_listworkareas(), silent = FALSE )
+  
+  if ( inherits( wrk, "try-error" ) ) {
+    
+    msg <- "Failed to list work areas"
+    
+    cxapp::cxapp_log( msg, attr = log_attributes )
+    res$status <- 500  # Internal error
+    return( list( "error" = msg ) )
+  }
+  
+  
+  
+  res$status <- 200  # OK
+  res$setHeader( "content-type", "application/json" )
+  res$body <- jsonlite::toJSON( as.list(wrk), auto_unbox = TRUE, pretty = TRUE )
+  
+  cxapp::cxapp_log( "List work areas", attr = log_attributes )
   
   
   return(res)
+}
+
+
+
+#* Drop a working copy
+#*
+#* @delete /api/work/<work>
+#* 
+#* @response 200 OK
+#* @response 500 Internal Error
+
+function( work, req, res ) {
+  
+  
+  cfg <- cxapp::.cxappconfig()
+  
+  
+  log_attributes <- c( base::toupper(req$REQUEST_METHOD), 
+                       req$REMOTE_ADDR, 
+                       req$PATH_INFO )
+  
+  
+  
+  # -- Authorization
+  
+  if ( ! "HTTP_AUTHORIZATION" %in% names(req) ) {
+    cxapp::cxapp_log("Authorization header missing", attr = log_attributes)
+    res$status <- 401  # Unauthorized
+    return("Authorization header missing")
+  }
+  
+  
+  auth_result <- try( cxapp::cxapp_authapi( req$HTTP_AUTHORIZATION ), silent = TRUE )
+  
+  if ( inherits( auth_result, "try-error" ) ) {
+    cxapp::cxapp_log("Authorization failed", attr = log_attributes)
+    res$status <- 401  # Unauthorized
+    return("Authorization failed")
+  }
+  
+  
+  if ( ! auth_result ) {
+    cxapp::cxapp_log("Access denied", attr = log_attributes)
+    res$status <- 403  # Forbidden
+    return("Access denied")
+  }
+  
+  
+  # -- identify authorized service or user 
+  service_principal <- ifelse( ! is.null( attr(auth_result, "principal") ), attr(auth_result, "principal"), "unkown" )
+  
+  
+  # - log authentication
+  
+  cxapp::cxapp_log( paste( "Authorized", service_principal ),
+                    attr = log_attributes )
+  
+  
+  # - add principal to log attributes
+  if ( ! is.null( attr(auth_result, "principal") ) )
+    log_attributes <- append( log_attributes, attr(auth_result, "principal") )
+  
+  
+  
+  
+  
+
+  # -- drop work area
+  
+  wrk <- try( txflow.service::txflow_dropworkarea( work ), silent = FALSE )
+  
+  if ( inherits( wrk, "try-error" ) || ! inherits(wrk, "logical") || ! wrk ) {
+    
+    msg <- "Failed to drop work area"
+    
+    cxapp::cxapp_log( msg, attr = log_attributes )
+    res$status <- 500  # Internal error
+    return( list( "error" = msg ) )
+  }
+  
+  
+  
+  res$status <- 200  # OK
+  
+  cxapp::cxapp_log( "Work area dropped", attr = log_attributes )
+  
+  
+  return(list("message" = "Work area dropped"))
 }
 
 
@@ -814,6 +1018,10 @@ function( work, reference, req, res ) {
     base::names(attrs) <- base::tolower(base::names(attrs))
   
 
+  # - url decode bespoke types
+  if ( ! "type" %in% base::names(attrs) )
+    attrs["type"] <- base::tolower(base::trimws(utils::URLdecode(attrs["type"])))
+  
   
   # - ensure name, reference and mime is associated with upload reference
   

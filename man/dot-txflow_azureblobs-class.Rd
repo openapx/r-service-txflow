@@ -24,7 +24,7 @@ The storage uses the following configuration options.
 Access tokens for storage integration uses Microsoft Azure OAuth
 authentication. The Azure REST API calls rely on authorization bearer token.
 
-\itemize {
+\itemize{
 \item \code{AZURE.OAUTH.URL} is the Microsoft Azure OAuth URL including the full
 URL path that should include the tenant ID
 \item \code{AZURE.OAUTH.CLIENTID} the client ID associated with the storage account
