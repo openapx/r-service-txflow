@@ -1012,14 +1012,14 @@ function( work, reference, req, res ) {
   
   attrs <- append( attrs, 
                    unlist( req$argsQuery, use.names = TRUE ) )
-  
+
   # - force argument names to lower case
-  if ( ! is.null(attrs) && ! is.null(base::names(attrs)) )
+  if (  (length(attrs) > 0) && ! is.null(attrs) && ! is.null(base::names(attrs)) )
     base::names(attrs) <- base::tolower(base::names(attrs))
   
 
   # - url decode bespoke types
-  if ( ! "type" %in% base::names(attrs) )
+  if ( "type" %in% base::names(attrs) )
     attrs["type"] <- base::tolower(base::trimws(utils::URLdecode(attrs["type"])))
   
   
@@ -1034,7 +1034,6 @@ function( work, reference, req, res ) {
   if ( ! "mime" %in% base::names(attrs) )
     attrs["mime"] <- tools::file_ext( base::tolower(base::trimws(reference)) )
   
-
 
   # -- add content to work area
   
