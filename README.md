@@ -1,4 +1,4 @@
-# txflow
+# txflow REST API
 A simple storage REST API for the Flow data repository written in R
 
 The basic principle of the Flow data repository is to provide version controlled
@@ -12,10 +12,17 @@ not support subfolders and subdirectories.
 Data is stored as blobs, binary objects, using the content SHA-1 as the blob name. 
 This provides both natural versioning and de-duplication.
 
-A repository snapshot is a collection of named data entries that are stored 
+It is extremely common that data is not stored as one single data file or blob, 
+but spread across multiple data files and blobs that may represent individual
+data domains, such Demography, Adverse Event, Laboratory Results, etc. in Life
+Sciences. We therefore treat and manage most _data_ as a collection of individual
+data domains.   
+
+A repository snapshot is a named collection of data files and blobs that are stored 
 within the data repository. The entry name within a snapshot would be equivalent
 to a file name, such that different snapshots can use different naming conventions
-for the same data, or blob, depending on the use case.
+for the same data, or blob, depending on the use case. See section related to
+the _Snapshot Specification_ for further details.
 
 The txflow REST API is the storage engine in the Flow data repository and is 
 intended for synchronizing with and transferring data to and from the data 
@@ -130,9 +137,11 @@ There are three standard directories.
 # -- default service configuration
 
 
-# -- txflow service
+# -- txflow service repository and snapshot storage
 
-# - local storage enabled
+# - enable storage
+#    note: LOCAL storage uses the local file system
+#    note: AZUREBLOBS uses Azure Block Blob storage 
 TXFLOW.STORE = LOCAL
 
 # - parent directory for data repositories and their snapshots
@@ -162,7 +171,7 @@ AUDITOR.URL = http://auditor.example.com
 
 # - auditor access token
 #   note: environmental variables are supported
-#   note: local and Azure Key vault is support
+#   note: local and Azure Key vault is supported
 #   note: for further details see Configuration section in the cxapp package
 #         https://github.com/cxlib/r-package-cxapp 
 AUDITOR.TOKEN = <token>
@@ -202,6 +211,9 @@ VAULT = LOCAL
 VAULT.DATA = /.vault
 
 ```
+
+Note that the txflow REST API also supports Azure Block Blob store as an alternative
+to local file storage.
 
 <br/>
 
@@ -249,9 +261,180 @@ Please the default configuration for the txflow service container image for requ
 <br/>
 
 
-### API Reference
+
+
+### Conventions and Specifications
+The Flow and txflow repository is primary based on the stored data files and blobs.
+The majority of associated metadata is maintained by Flow, but the principle
+information is also stored as specification files within the data repository 
+to easily archive and restore data repositories.
+
+The specifications are stored in JSON format.
 
 <br/>
+
+#### Data repositories
+A data repository is, similar to a code repository, a named repository containing
+data files, blobs and associated snapshots.
+
+A repository name  
+
+- consists of letters a-z, digits 0-9 and punctuation dash `-`
+- starts and ends with a letter or digit
+- all dashes `-` must be preceded and followed by letter or digit
+- is between 3 and 63 characters in length
+
+The data repository is a based on a single-level storage for simplicity, i.e. the
+contents of a data repository is stored within the root level of the repository. 
+
+The repository is the or highest or top-most level in Flow and txflow.
+
+<br/>
+
+#### Data file and blob specification 
+The data file and blob specification is the initial metadata associated with a
+data file or blob first commit to the repository as a point of reference.
+
+```
+{ 
+  "version": "1.0.0",
+  "type": "<content type>",
+  "class": "<content class>",
+  "reference": "<content reference>",
+  "sha": "<SHA-1 of content>",
+  "blobs": "<repository blob name>",
+  "mime": "<content mime/file extension>",
+  "name": "<content name>"
+}
+```
+
+`version` represents the data file and blob specification schema version. It is 
+reserved for future use allowing extended metadata, properties and attributes.
+`version` only applies to the entry and not any specific REST API calls and 
+features. _It does not represent the version of the data file or blob_. 
+
+The content `type` is a keyword identifying the the type of data file or blob 
+entry. The `type` is used for application and related business logic in 
+processing or displaying the data file or blob.
+
+The `type` is a case insensitive keyword consisting of the characters A-Z, digits
+0-9, punctuation period `.` and underscores `_`. 
+
+Supported types for Flow and txflow include the following
+
+- `datafile` as a generic data file or blob
+- `datafile.sas` as a data file in SAS data file format
+- `datafile.rds` as a data file in R _RDS_ format
+- `datafile.rda` as a data file in R _RData_ format
+- `datafile.csv` as a data file in standard CSV format
+- `datafile.xlsx` as a data file in Microsoft Excel format (xslx)
+- `datafile.text` as a data file in plain text format
+
+The `type` can also be specified with prefix (`<scope>:<type>`). 
+The prefix provides a method to introduce a scope. If `type` is specified 
+without a prefix, a global scope is assumed. Use the scope `custom` for
+custom and bespoke types.
+
+The `class` allows further classification of `type`. A `class` is a case
+insensitive keyword consisting of the characters A-Z, digits
+0-9, punctuation period `.` and underscores `_`. For example, the `class` _SDTM_
+can denote that the data file or blob is an SDTM.
+
+`reference` is a case insensitive keyword that can be used to assign a generic 
+reference to the data file or blob. The principle is that data files or blobs 
+of the same `type`, `class` and `reference` represent a group of like entries and
+where each data file or blob is a particular instance of that. As an example, 
+an entry of `type` of `datafile.rds`, `class` as `sdtm` and `reference` equal to
+`ae` would represent being part of the _AE SDTMs in R RDS format_. 
+
+The `sha` property is the data file or blobs SHA-1 digest. The value is derived
+prior to storing the data file or blob in the configured storage.
+
+The `blobs` attribute is the storage name of the data file or blob in the
+configured storage. Both local and Azure Block Blob storage utilizes the data
+file or blob SHA-1 digest for storage. Future implementations will support storing
+large data files or blobs as multiple entries, hence `blobs` will include each 
+stored entry.
+
+The `mime` entry is captured and retained for reference.
+
+The `name`entry represents the default identify of the data file or blob within
+a snapshot. However, the snapshot can use a different name that is only applicable
+within that specific snapshot.
+
+<br/>
+
+
+#### Snapshot specification
+The snapshot specification defines the snapshot and represents a named collection
+of data files and blobs to be included. A snapshot can only include data files
+and blobs from the same repository where the snapshot is defined.
+
+A snapshot can also be seen as a pre-defined view of data files and blobs within
+a data repository.
+
+```
+{ 
+  "version": "1.0.0",
+  "name": "<content type>",
+  "repository": "<content class>",
+  "members": [
+     { 
+        "version": "<data file or blob specification version>",
+        "type": "<content type>",
+        "class": "<content class>",
+        "reference": "<content reference>",
+        "sha": "<SHA-1 of content>",
+        "blobs": "<repository blob name>",
+        "mime": "<content mime/file extension>",
+        "name": "<content name within the snapshot>"
+     },
+     ...
+  ]
+}
+```
+
+`version` in the main object represents the snapshot specification schema version. 
+It is reserved for future use allowing extended metadata, properties and attributes
+for the snapshot specification. `version` only applies to the snapshot specification
+and not the schema version of `members` entries or specific REST API calls and 
+features. _It does not represent the version of the snapshot specification_. 
+
+`name` is the snapshot name, case insensitive. The snapshot name  
+
+- consists of letters a-z, digits 0-9 and punctuation dash `-` and underscore `_`
+- starts and ends with a letter or digit
+- all dashes `-` and underscores `_` must be preceded and followed by letter or digit
+- is between 3 and 256 characters in length
+
+Note that REST API requests related to a snapshot always includes references to 
+the parent data repository, so the snapshot name does not require incorporating
+the repository name or reference.
+
+The `repository` is the name of the snapshot parent data repository. A snapshot 
+can only be a member of a single repository.
+
+`members` is an array of snapshot members. All member properties and attributes
+except the `name` entry are copies of the data file or blob specification. 
+
+The default member `name` is the `name` property recorded within the data file and
+blob specification, but the snapshot can use a different member `name` to enable a
+snapshot to incorporate business process specific naming conventions while 
+retaining a central default standard.
+
+Note, the entry `version` property refers to the data file or blob specification 
+version and is included as a reference for downstream processing controls and logic.
+
+
+<br/>
+<br/>
+
+### API Reference
+
+
+<br/>
+<br/>
+
 
 #### Authentication
 The API uses Bearer tokens to authenticate a connection request using the standard header.
@@ -355,11 +538,12 @@ The returned record is in the format of a JSON object.
 
 ```
 {
-  "version": "0.1",
+  "version": "1.0.0",
   "name": "<snapshot name>",
   "repository": "<repository>",
-  "contents": [
+  "members": [
     {
+      "version": "<data file or blob specification version>",
       "type": "<content type>",
       "class": "<content class>",
       "reference": "<content reference>",
@@ -378,7 +562,7 @@ The `version` is an internal schema version number.
 The `name` property is the snapshot name and the `repository` property refers to
 the snapshot's parent repository.
 
-Each data file or blob included in the snapshot is listed in the `contents` array.
+Each data file or blob included in the snapshot is listed in the `members` array.
 The properties for the file or blob is defined within the context of the 
 snapshot and may differ from those properties defined for snapshots where the same
 file or blob is included.
@@ -428,15 +612,41 @@ The request requires that the Content-Type header of the request is equal to
 
 
 
-#### Create a New Work Area
+
+#### List New Work Areas
 ```
-GET /api/work/<repository>/<snapshot>
+GET /api/work
 ```
 
-Creates a new work area for a specified `repository` and `snapshot`. If the 
-snapshot exists in the specified repository, the work area is initialized with
+Retrieves a list of current work areas
+
+The returned record is in the format of a JSON array of work area names.
+
+```
+[ 
+  "new-workarea"
+]
+```
+
+<br/>
+<br/>
+
+
+
+
+
+#### Create a New Work Area
+```
+POST /api/work
+```
+
+Creates a new work area for a specified `repository` and `snapshot` (POST parameters). 
+
+If `snapshot` is not specified, `undefined` is used as the snapshot reference.
+
+If the snapshot exists in the specified repository, the work area is initialized with
 the snapshot specification. Any existing data files or blobs for the specification
-is not staged in the work area.
+are not staged in the work area.
 
 If the snapshot does not exist, a new snapshot specification is created in the
 work area.
@@ -460,6 +670,25 @@ as the only entry.
 <br/>
 <br/>
 
+
+
+#### Drop a New Work Area
+```
+DELETE /api/work/<work>
+```
+
+Blindly drops the specified work area.
+
+A message with the result of the operation in JSON format is returned.
+
+```
+{ 
+  "message": "<message>"
+}
+```
+
+<br/>
+<br/>
 
 
 #### Add/Upload Data File or Blob to a Work Area 
@@ -495,6 +724,7 @@ The returned record is in the format of a JSON object.
 
 ```
 {
+  "version": "<data file or blob specification version>",
   "type": "<type>",
   "class": "<class>",
   "reference": "<reference>",
@@ -540,6 +770,7 @@ The returned record is in the format of a JSON object.
 
 ```
 {
+  "version": "<data file or blob specification version>",
   "type": "<type>",
   "class": "<class>",
   "reference": "<reference>",
@@ -619,9 +850,10 @@ The returned record is in the format of a JSON object.
   "version": "<txflow version>",
   "repositories": {
     "configuration": {
+      "txflow.work": "<work area parent directory>",
       "txflow.store": "<storage service>",
-      "txflow.data": "<repository parent directory>",
-      "txflow.work": "<work area parent directory>"
+      "txflow.data": "<local file system: repository parent directory>",
+      "azureblobs.url" : "<Azure block blob store: Azure store URL>"
     }
   },
   "auditor": {
@@ -632,13 +864,24 @@ The returned record is in the format of a JSON object.
       "auditor.token": "<set or unset>",
       "auditor.failcache": <path to auditor fail cache>
     }
+  }, 
+  "azure.oauth" : {
+     "azure.oauth.url" : 
+     "azure.oauth.clientid" :
+     "azure.oauth.clientsecret" : "<set or unset>"
   }
 }
 ```
 
+The `configuration` properties and attributes for `repostories` is dependent 
+on the storage configuration. The properties `txflow.data` and `azureblobs.url`
+are only returned if local file system storage or Azure block blob storage,
+respectively, is enabled.
 
 If the Auditor service is disabled, the Auditor configuration may not be displayed.
 
+If Azure OAuth is configured, the `azure.oauth` configuration properties and 
+attributes are included. 
 
 
 <br/>
@@ -691,6 +934,36 @@ The following app properties are used for configuring local file system storage.
 
 
 <br/>
+
+
+
+#### Azure Block Blob Storage
+The following app properties are used for configuring storage to use Azure 
+block blob store.
+
+_Note that this storage method relies on access tokens obtained using Azure 
+OAuth_.
+
+Azure Blob Blob storage configuration is
+
+- `TXFLOW.WORK` is the parent directory for work areas
+- `TXFLOW.STORE` equal to `AZUREBLOBS`
+- `AZUREBLOBS.URL` is the parent directory for data repositories
+
+
+Azure OAuth configuration requires the following app properties
+
+- `AZURE.OAUTH.URL` is the Microsoft Azure OAuth URL including the full 
+  URL path that should include the tenant ID
+- `AZURE.OAUTH.CLIENTID` the client ID associated with the storage account
+- `AZURE.OAUTH.CLIENTSECRET` the client secret associated with the storage account
+
+Note that `cxapp::cxapp_config()` supports environmental variables and secret/key
+vaults for storing secrets. Please see Dependencies for further references to 
+the R package cxapp.
+
+<br/>
+
 
 
 #### Service Logs
@@ -784,7 +1057,7 @@ To make the examples work, we define two standard objects, the first is the URL
 The second object is the access token.
 
 ```
-url_to_auditor <- "http://auditor.example.com:81"
+url_to_txflow <- "http://txflow.example.com:81"
 my_token_in_clear_text <- "<access token>"
 ```
 
@@ -830,7 +1103,7 @@ Information on the service and service configuration can easily be obtained.
 # -- service information
 #    GET /api/info
 
-info <- httr2::request( url_to_auditor ) |>
+info <- httr2::request( url_to_txflow ) |>
   httr2::req_method("GET") |>
   httr2::req_url_path("/api/info") |>
   httr2::req_auth_bearer_token( my_token_in_clear_text ) |>
@@ -852,7 +1125,7 @@ A data repository is created in a single step.
 
 repository <- "example-01"
 
-create_repo <- httr2::request( url_to_auditor ) |>
+create_repo <- httr2::request( url_to_txflow ) |>
   httr2::req_method("PUT") |>
   httr2::req_url_path("/api/repositories") |>
   httr2::req_url_path_append( repository ) |>
@@ -866,7 +1139,7 @@ The new repository name is returned.
 <br/>
 
 
-##### Get a Snapshot Work Area
+##### Create a Snapshot Work Area
 Snapshots are created, edited and saved using a snapshot work area.
 
 To create a snapshot work area, simply request one. You can have multiple work
@@ -879,16 +1152,16 @@ exist within a repository.
 
 ```
 # -- Get snapshot work area
-#    GET /api/work/<repository>/<snapshot>
+#    POST /api/work
 
 snapshot <- "mysnapshot-01"
 
-work_area <- httr2::request( url_to_auditor ) |>
-  httr2::req_method("GET") |>
+work_area <- httr2::request( url_to_txflow ) |>
+  httr2::req_method("POST") |>
   httr2::req_url_path("/api/work") |>
-  httr2::req_url_path_append( repository ) |>
-  httr2::req_url_path_append( snapshot ) |>
   httr2::req_auth_bearer_token( my_token_in_clear_text ) |>
+  httr2::req_body_form( "repository" = repository, 
+                        "snapshot" = snapshot ) |>
   httr2::req_perform() |>
   httr2::resp_body_json()
 
@@ -919,7 +1192,7 @@ added is what I would commonly refer to as a data blob.
 
 data_blob_file <- file.path( base::getwd(), "data", "test-data-01.txt" )
 
-add_data_blob <- httr2::request( url_to_auditor ) |>
+add_data_blob <- httr2::request( url_to_txflow ) |>
   httr2::req_method("PUT") |>
   httr2::req_url_path("/api/work") |>
   httr2::req_url_path_append( work_area ) |>
@@ -952,7 +1225,7 @@ example below, we set the properties `type`, `class`, `reference` and `mime`.
 
 data_file <- file.path( base::getwd(), "data", "nottem.rds" )
 
-add_data_file <- httr2::request( url_to_auditor ) |>
+add_data_file <- httr2::request( url_to_txflow ) |>
   httr2::req_method("PUT") |>
   httr2::req_url_path("/api/work") |>
   httr2::req_url_path_append( work_area ) |>
@@ -985,7 +1258,7 @@ available.
 # -- Commit work area to the repository
 #    PUT /api/commit/<work>
 
-commit <- httr2::request( url_to_auditor ) |>
+commit <- httr2::request( url_to_txflow ) |>
   httr2::req_method("PUT") |>
   httr2::req_url_path("/api/commit") |>
   httr2::req_url_path_append( work_area ) |>
@@ -1009,7 +1282,7 @@ snapshots.
 # -- Get a list of repositories
 #    GET /api/repositories
 
-lst_repositories <- httr2::request( url_to_auditor ) |>
+lst_repositories <- httr2::request( url_to_txflow ) |>
   httr2::req_method("GET") |>
   httr2::req_url_path("/api/repositories") |>
   httr2::req_auth_bearer_token( my_token_in_clear_text ) |>
@@ -1026,7 +1299,7 @@ using the repository created at the beginning for our examples.
 # -- Get a list of snapshots for a repository
 #    GET /api/repositories/<repository>/snapshots
 
-lst_snapshots <- httr2::request( url_to_auditor ) |>
+lst_snapshots <- httr2::request( url_to_txflow ) |>
   httr2::req_method("GET") |>
   httr2::req_url_path("/api/repositories") |>
   httr2::req_url_path_append( repository ) |>
@@ -1053,7 +1326,7 @@ does not download any snapshot data files or blobs.
 # -- Get a repository snapshot specification
 #    GET /api/repositories/<repository>/snapshots/<snapshot>
 
-snapshot_spec <- httr2::request( url_to_auditor ) |>
+snapshot_spec <- httr2::request( url_to_txflow ) |>
   httr2::req_method("GET") |>
   httr2::req_url_path("/api/repositories") |>
   httr2::req_url_path_append( repository ) |>
@@ -1082,7 +1355,7 @@ is a nested list of named entries since we used `httr2::resp_body_json()` as
 part of the request.
 
 ```
-snapshot_first_entry <- snapshot_spec[["contents"]][[1]]
+snapshot_first_entry <- snapshot_spec[["members"]][[1]]
 
 # - when retrieving by name
 by_name <- snapshot_first_entry[["name"]]
@@ -1094,12 +1367,12 @@ by_resource <- snapshot_first_entry[["blobs"]]
 We can retrieve a data file or blob by its name within the snapshot.
 
 ```
-# -- Get data file or blob by name in the snapshot 
+# -- Get data file by name in the snapshot 
 #    GET /api/repositories/<repository>/snapshots/<snapshot>/<name>
 
 output_file_by_name <- file.path( base::getwd(), by_name )
 
-base::writeBin( httr2::request( url_to_auditor ) |>
+base::writeBin( httr2::request( url_to_txflow ) |>
                   httr2::req_method("GET") |>
                   httr2::req_url_path("/api/repositories") |>
                   httr2::req_url_path_append( repository ) |>
@@ -1118,12 +1391,12 @@ We can also retrieve the same file by using the `blobs` reference within the
 snapshot entry.
 
 ```
-# -- Get data file or blob by name in the snapshot 
+# -- Get data file by blob in the snapshot 
 #    GET /api/repositories/<repository>/snapshots/<snapshot>/<resource>
 
 output_file_by_blob <- file.path( base::getwd(), by_resource )
 
-base::writeBin( httr2::request( url_to_auditor ) |>
+base::writeBin( httr2::request( url_to_txflow ) |>
                   httr2::req_method("GET") |>
                   httr2::req_url_path("/api/repositories") |>
                   httr2::req_url_path_append( repository ) |>
@@ -1150,7 +1423,7 @@ the name of the entry is only defined within a snapshot.
 
 output_file_as_repository_resource <- file.path( base::getwd(), "repository_resource" )
 
-base::writeBin( httr2::request( url_to_auditor ) |>
+base::writeBin( httr2::request( url_to_txflow ) |>
                   httr2::req_method("GET") |>
                   httr2::req_url_path("/api/repositories") |>
                   httr2::req_url_path_append( repository ) |>
@@ -1183,15 +1456,15 @@ in the snapshot specification. Note, that dropping a data file or blob from a
 snapshot does not delete it from the repository.
 
 ```
-# -- Get snapshot work area using existing snapshot
-#    GET /api/work/<repository>/<snapshot>
+# -- Create snapshot work area using existing snapshot
+#    POST /api/work
 
-edit_work_area <- httr2::request( url_to_auditor ) |>
-  httr2::req_method("GET") |>
+edit_work_area <- httr2::request( url_to_txflow ) |>
+  httr2::req_method("POST") |>
   httr2::req_url_path("/api/work") |>
-  httr2::req_url_path_append( repository ) |>
-  httr2::req_url_path_append( snapshot ) |>
   httr2::req_auth_bearer_token( my_token_in_clear_text ) |>
+  httr2::req_body_form( "repository" = repository, 
+                        "snapshot" = snapshot ) |>
   httr2::req_perform() |>
   httr2::resp_body_json()
 
@@ -1204,7 +1477,7 @@ We then drop the named item `mydatablob` from the work area snapshot.
 # -- Drop named item 
 #    DELETE /api/work/<work>/<name>
 
-drop_blob <- httr2::request( url_to_auditor ) |>
+drop_blob <- httr2::request( url_to_txflow ) |>
   httr2::req_method("DELETE") |>
   httr2::req_url_path("/api/work") |>
   httr2::req_url_path_append( edit_work_area ) |>
@@ -1226,7 +1499,7 @@ our previous examples.
 
 cars_data_file <- file.path( base::getwd(), "data", "mtcars.rds" )
 
-cars_add_data_file <- httr2::request( url_to_auditor ) |>
+cars_add_data_file <- httr2::request( url_to_txflow ) |>
   httr2::req_method("PUT") |>
   httr2::req_url_path("/api/work") |>
   httr2::req_url_path_append( edit_work_area ) |>
@@ -1250,7 +1523,7 @@ At this point, we commit the work area but using the new snapshot name
 # -- Commit edited work area to the repository
 #    PUT /api/commit/<work>
 
-commit_edits <- httr2::request( url_to_auditor ) |>
+commit_edits <- httr2::request( url_to_txflow ) |>
   httr2::req_method("PUT") |>
   httr2::req_url_path("/api/commit") |>
   httr2::req_url_path_append( edit_work_area ) |>
@@ -1266,7 +1539,7 @@ Listing the snapshots in the repository includes our new snapshot.
 # -- Get a list of snapshots for a repository
 #    GET /api/repositories/<repository>/snapshots
 
-lst_snapshots <- httr2::request( url_to_auditor ) |>
+lst_snapshots <- httr2::request( url_to_txflow ) |>
   httr2::req_method("GET") |>
   httr2::req_url_path("/api/repositories") |>
   httr2::req_url_path_append( repository ) |>
@@ -1283,7 +1556,7 @@ new snapshot specification.
 # -- Get a repository snapshot specification
 #    GET /api/repositories/<repository>/snapshots/<snapshot>
 
-edited_snapshot_spec <- httr2::request( url_to_auditor ) |>
+edited_snapshot_spec <- httr2::request( url_to_txflow ) |>
   httr2::req_method("GET") |>
   httr2::req_url_path("/api/repositories") |>
   httr2::req_url_path_append( repository ) |>
@@ -1309,16 +1582,17 @@ Let us start with setting up a work area.
 
 ```
 # -- Get snapshot work area using existing snapshot
-#    GET /api/work/<repository>/<snapshot>
+#    POST /api/work
 
-edit_work_area2 <- httr2::request( url_to_auditor ) |>
-  httr2::req_method("GET") |>
+edit_work_area2 <- httr2::request( url_to_txflow ) |>
+  httr2::req_method("POST") |>
   httr2::req_url_path("/api/work") |>
-  httr2::req_url_path_append( repository ) |>
-  httr2::req_url_path_append( snapshot ) |>
   httr2::req_auth_bearer_token( my_token_in_clear_text ) |>
+  httr2::req_body_form( "repository" = repository, 
+                        "snapshot" = snapshot ) |>
   httr2::req_perform() |>
   httr2::resp_body_json()
+
 
 edit_work_area2 <- unlist(edit_work_area2)
 ```
@@ -1330,7 +1604,7 @@ the name `cars`.
 # -- Add data file or blob from a previous snapshot by name
 #    PATCH /api/work/<work>/<reference>?snapshot=<snapshot>&name=<name>
 
-add_existing <- httr2::request( url_to_auditor ) |>
+add_existing <- httr2::request( url_to_txflow ) |>
   httr2::req_method("PATCH") |>
   httr2::req_url_path("/api/work") |>
   httr2::req_url_path_append( edit_work_area2 ) |>
@@ -1349,7 +1623,7 @@ results.
 # -- Commit edited work area to the repository
 #    PUT /api/commit/<work>
 
-commit_edits2 <- httr2::request( url_to_auditor ) |>
+commit_edits2 <- httr2::request( url_to_txflow ) |>
   httr2::req_method("PUT") |>
   httr2::req_url_path("/api/commit") |>
   httr2::req_url_path_append( edit_work_area2 ) |>
@@ -1362,7 +1636,7 @@ commit_edits2 <- httr2::request( url_to_auditor ) |>
 # -- Get a repository snapshot specification
 #    GET /api/repositories/<repository>/snapshots/<snapshot>
 
-amended_snapshot_spec <- httr2::request( url_to_auditor ) |>
+amended_snapshot_spec <- httr2::request( url_to_txflow ) |>
   httr2::req_method("GET") |>
   httr2::req_url_path("/api/repositories") |>
   httr2::req_url_path_append( repository ) |>

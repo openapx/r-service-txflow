@@ -11,9 +11,26 @@
 #' @method getreference getreference
 #' @method show show
 #' 
+#' @description
+#' A collection of internal methods to manage data file and blobs stored using
+#' the local file system.
 #' 
-# exportClass txflow_fsstore
-# export txflow_fsstore
+#' The storage relies on the local file sysmte with each data repository 
+#' represented as a directory and data files and blobs stored in the 
+#' root of the repository directory. The directory is named as the repository 
+#' name without a prefix making using the repository parent directory a 
+#' shared storage area not practical.
+#' 
+#' The storage uses the following configuration options.
+#' 
+#' \itemize{
+#'   \item `TXFLOW.STORE` equal to `LOCAL`, case insensitive
+#'   \item `TXFLOW.DATA` specifying the parent directory for repositories
+#' }
+#' 
+#' 
+#' 
+
 
 
 
@@ -32,6 +49,8 @@
   # -- configuration 
   cfg <- cxapp::.cxappconfig()
   
+  .self$.attr[["mode.try.silent"]] <- ! cfg$option( "mode.debug", unset = FALSE )
+
   
   if ( base::tolower(base::trimws(cfg$option("txflow.store", unset = "not-defined"))) != "local" )
     stop( "Invalid storage configuration")
@@ -49,17 +68,17 @@
   
   # -- repository work area
   
-  wrk <- cfg$option( "txflow.work", unset = NA )
-  
-  if ( is.na(wrk) ) {
-    
-    wrk <- base::tempfile( pattern = "txflow-work-", tmpdir = base::tempdir(), fileext = "" )
-    
-    if ( ! dir.exists(wrk) && ! dir.create(wrk, recursive = TRUE) )
-      stop( "Could not create temporary work area" )
-  }
-    
-  .self$.attr[["repository.work"]] <- gsub( "\\\\", "/", wrk )
+  # wrk <- cfg$option( "txflow.work", unset = NA )
+  # 
+  # if ( is.na(wrk) ) {
+  #   
+  #   wrk <- base::tempfile( pattern = "txflow-work-", tmpdir = base::tempdir(), fileext = "" )
+  #   
+  #   if ( ! dir.exists(wrk) && ! dir.create(wrk, recursive = TRUE) )
+  #     stop( "Could not create temporary work area" )
+  # }
+  #   
+  # .self$.attr[["repository.work"]] <- gsub( "\\\\", "/", wrk )
   
 })
 
@@ -294,27 +313,31 @@
    
   
   # -- as a snapshot named item 
-  snapshot_file <- try( .self$snapshot( paste( resource_spec[ c( "repository", "snapshot") ], collapse = "/" ) ), silent = FALSE )
+  snapshot_file <- try( .self$snapshot( paste( resource_spec[ c( "repository", "snapshot") ], collapse = "/" ) ), silent = .self$.attr[["mode.try.silent"]] )
   
   # - snapshot specification does not exist ... so cannot contain reference
-  if ( inherits(snapshot_file, "try-error") )
+  if ( inherits(snapshot_file, "try-error") ) {
+    cxapp::cxapp_logerr(snapshot_file)
     return(invisible(NULL))
+  }
   
   # - snapshot specification
-  snapshot_spec <- try( jsonlite::fromJSON(snapshot_file), silent = FALSE )
+  snapshot_spec <- try( jsonlite::fromJSON(snapshot_file, simplifyVector = FALSE), silent = .self$.attr[["mode.try.silent"]] )
 
-  if ( inherits(snapshot_spec, "try-error") )
+  if ( inherits(snapshot_spec, "try-error") ) {
+    cxapp::cxapp_logerr( snapshot_spec )
     return(invisible(NULL))
+  }
   
   
   
-  if ( ! "contents" %in% base::names(snapshot_spec) )
+  if ( ! "members" %in% base::names(snapshot_spec) )
     return(invisible(NULL))
        
   
   # - look for blob reference in contents
 
-  for ( xentry in snapshot_spec[["contents"]] ) {
+  for ( xentry in snapshot_spec[["members"]] ) {
     
     # note: cannot resolve blob 
     if ( ! "blobs" %in% base::names(xentry) )
@@ -410,27 +433,29 @@
   
   
   # -- as a snapshot named item 
-  snapshot_file <- try( .self$snapshot( paste( resource_spec[ c( "repository", "snapshot") ], collapse = "/" ) ), silent = FALSE )
+  snapshot_file <- try( .self$snapshot( paste( resource_spec[ c( "repository", "snapshot") ], collapse = "/" ) ), silent = .self$.attr[["mode.try.silent"]] )
   
   # - snapshot specification does not exist ... so cannot contain reference
   if ( inherits(snapshot_file, "try-error") )
     return(invisible(NULL))
   
   # - snapshot specification
-  snapshot_spec <- try( jsonlite::fromJSON(snapshot_file), silent = FALSE )
+  snapshot_spec <- try( jsonlite::fromJSON(snapshot_file, simplifyVector = FALSE), silent = .self$.attr[["mode.try.silent"]] )
   
-  if ( inherits(snapshot_spec, "try-error") )
+  if ( inherits(snapshot_spec, "try-error") ) {
+    cxapp::cxapp_logerr(snapshot_spec)
     return(invisible(NULL))
+  }
   
   
   
-  if ( ! "contents" %in% base::names(snapshot_spec) )
+  if ( ! "members" %in% base::names(snapshot_spec) )
     return(invisible(NULL))
   
   
   # - look for blob reference in contents
   
-  for ( xentry in snapshot_spec[["contents"]] ) {
+  for ( xentry in snapshot_spec[["members"]] ) {
     
     # note: cannot resolve blob 
     if ( ! "blobs" %in% base::names(xentry) )
@@ -528,7 +553,7 @@
 
   lck_file <- paste8( tools::file_path_sans_ext(spec_file), ".lck" )
   
-  if ( ! inherits( try( writeLines( spec_hash, con = lck_file ), silent = FALSE ), "try-error" ) && file.exists(lck_file) )
+  if ( ! inherits( try( writeLines( spec_hash, con = lck_file ), silent = .self$.attr[["mode.try.silent"]] ), "try-error" ) && file.exists(lck_file) )
     return(invisible(TRUE))
   
   
@@ -590,10 +615,12 @@
   
   # -- repository path
   
-  repo_path <- try( .self$repository( repository ), silent = FALSE )
+  repo_path <- try( .self$repository( repository ), silent = .self$.attr[["mode.try.silent"]] )
   
-  if ( inherits( repo_path, "try-error" ) )
+  if ( inherits( repo_path, "try-error" ) ) {
+    cxapp::cxapp_logerr(repo_path)
     return(invisible(NULL))
+  }
 
   
   rslt <- base::rep_len( "not done", length(x) )

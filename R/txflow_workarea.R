@@ -31,6 +31,8 @@ txflow_workarea <- function( work = NULL, snapshot = NULL ) {
 
   # -- config
   cfg <- cxapp::.cxappconfig()
+
+  try_silent <- ! cfg$option( "mode.debug", unset = FALSE )
   
   
   # -- work area root
@@ -86,16 +88,20 @@ txflow_workarea <- function( work = NULL, snapshot = NULL ) {
   wrk_snapshot_spec_file <- file.path( wrk_area, paste0( "snapshot-", default_spec[["name"]],".json" ), fsep = "/" )
 
   if ( inherits( try( base::writeLines( jsonlite::toJSON( default_spec, pretty = TRUE, auto_unbox = TRUE ),
-                                        con = wrk_snapshot_spec_file ), silent = FALSE ), "try-error" ) )
+                                        con = wrk_snapshot_spec_file ), silent = try_silent ), "try-error" ) )
     stop( "Work area snapshot specification could not be initiated")
 
 
   # - initialize with default work area inventory
   
-  if ( inherits( try( base::writeLines( paste( digest::digest( wrk_snapshot_spec_file, algo = "sha1", file = TRUE ),
-                                               base::basename(wrk_snapshot_spec_file), sep = " " ),
-                                        con = file.path( wrk_area, "inventory", fsep = "/" )), silent = FALSE ), "try-error" ) ) 
+  inv_write <- try( base::writeLines( paste( digest::digest( wrk_snapshot_spec_file, algo = "sha1", file = TRUE ),
+                                             base::basename(wrk_snapshot_spec_file), sep = " " ),
+                                      con = file.path( wrk_area, "inventory", fsep = "/" )), silent = try_silent )
+  
+  if ( inherits( inv_write, "try-error" ) ) {
+    cxapp::cxapp_logerr( inv_write )
     stop( "Work area could not be initiated")
+  }
   
       
 
@@ -111,10 +117,12 @@ txflow_workarea <- function( work = NULL, snapshot = NULL ) {
   # - get snapshot from storage  
   strg <- txflow.service::txflow_store()
   
-  path_spec <- try( strg$snapshot( snapshot ), silent = FALSE )
+  path_spec <- try( strg$snapshot( snapshot ), silent = try_silent )
   
-  if ( inherits( path_spec, "try-error" ) ) 
+  if ( inherits( path_spec, "try-error" ) ) {
+    cxapp::cxapp_logerr(path_spec)
     stop( "Failed to retrieve snapshot specification from repository" )
+  }
 
   
   # - snapshot does not exist in repository
@@ -124,41 +132,52 @@ txflow_workarea <- function( work = NULL, snapshot = NULL ) {
     
   # - import snapshot specification
   
-  snapshot_spec <- try( jsonlite::fromJSON( path_spec ), silent = FALSE )
+  snapshot_spec <- try( jsonlite::fromJSON( path_spec, simplifyVector = FALSE ), silent = try_silent )
   
-  if ( inherits( snapshot_spec, "try-error") )
+  if ( inherits( snapshot_spec, "try-error") ) {
+    cxapp::cxapp_logerr(snapshot_spec)
     stop( "Could not import existing snapshot specification" )
+  }
   
   
   
   # - process content
   
-  if ( ! "contents" %in% base::names(snapshot_spec) )
+  if ( ! "members" %in% base::names(snapshot_spec) )
     return(invisible(wrk_ref))
 
   
   entry_lst <- character(0)
   
-  for ( xentry in snapshot_spec[["contents"]] ) {
+  for ( xentry in snapshot_spec[["members"]] ) {
     
     xentry_file <- file.path( wrk_area, paste0( xentry[["blobs"]], ".json"), fsep = "/" )
     
     if ( file.exists(xentry_file) )
       next()
     
-    if ( inherits( try( base::writeLines( jsonlite::toJSON( xentry, pretty = TRUE, auto_unbox = TRUE),
-                                          con = xentry_file ), silent = FALSE ), "try-error" ) ) 
-      stop( "Could not stage entry in Work area")
+    xentry_write <- try( base::writeLines( jsonlite::toJSON( xentry, pretty = TRUE, auto_unbox = TRUE),
+                                           con = xentry_file ), silent = try_silent ) 
     
+    if ( inherits( xentry_write, "try-error" ) ) {
+      cxapp::cxapp_logerr(xentry_write)
+      stop( "Could not stage entry in Work area")
+    }
   
     entry_lst <- append( entry_lst, 
                          paste( xentry[["blobs"]], xentry[["name"]] ) )  
-    
+  
+    base::rm( list = "xentry_write" )  
   }
   
   
-  if ( inherits( try( base::writeLines( entry_lst, con = file.path( wrk_area, "entries", fsep = "/" )), silent = FALSE ), "try-error" ) ) 
+  
+  entry_lst_write <- try( base::writeLines( entry_lst, con = file.path( wrk_area, "entries", fsep = "/" )), silent = try_silent )
+  
+  if ( inherits( entry_lst_write, "try-error" ) ) {
+    cxapp::cxapp_logerr( entry_lst_write )
     stop( "List of entries could not be initiated")
+  }
   
   
   
@@ -167,8 +186,13 @@ txflow_workarea <- function( work = NULL, snapshot = NULL ) {
     paste( digest::digest( xfile, algo = "sha1", file = TRUE ), base::basename( xfile ), sep = " " )
   }, USE.NAMES = FALSE)
 
-  if ( inherits( try( base::writeLines( lst, con = file.path( wrk_area, "inventory", fsep = "/" )), silent = FALSE ), "try-error" ) ) 
+  
+  inv_write <- try( base::writeLines( lst, con = file.path( wrk_area, "inventory", fsep = "/" )), silent = try_silent )
+  
+  if ( inherits( inv_write, "try-error" ) ) {
+    cxapp::cxapp_logerr(inv_write)
     stop( "Populated work area could not be initiated")
+  }
   
 
   # -- all done 

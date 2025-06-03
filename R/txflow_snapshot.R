@@ -22,28 +22,42 @@ txflow_snapshot <- function( x, as.actor = NULL, audited = FALSE ) {
     stop( "Repository name missing or invalid")
   
   
-  # -- connect storage 
-  store <- try( txflow.service::txflow_store(), silent = FALSE )
   
-  if ( inherits(store, "try-error") )
+  # - configuration
+  cfg <- cxapp::.cxappconfig()
+  
+  try_silent <- ! cfg$option( "mode.debug", unset = FALSE )
+  
+  
+  
+  # -- connect storage 
+  store <- try( txflow.service::txflow_store(), silent = try_silent )
+  
+  if ( inherits(store, "try-error") ) {
+    cxapp::cxapp_logerr(store)
     return(invisible(list()))
+  }
   
   # -- snapshot
-  tmp_spec <- try( store$snapshot(x, file = NULL ), silent = FALSE )
+  tmp_spec <- try( store$snapshot(x, file = NULL ), silent = try_silent )
   
-  if ( inherits( tmp_spec, "try-error") )
+  if ( inherits( tmp_spec, "try-error") ) {
+    cxapp::cxapp_logerr(tmp_spec)
     return(invisible(list()))
+  }
  
   if ( is.null(tmp_spec) )
     return(invisible(NULL))
   
   
-  lst <- try( jsonlite::fromJSON( tmp_spec ), silent = FALSE )
+  lst <- try( jsonlite::fromJSON( tmp_spec ), silent = try_silent )
   
   base::unlink( base::dirname(tmp_spec), recursive = TRUE, force = FALSE )
   
-  if ( inherits( tmp_spec, "try-error" ) ) 
+  if ( inherits( lst, "try-error" ) ) {
+    cxapp::cxapp_logerr( lst )
     return(invisible(list()))
+  }
   
   
   if ( ! audited ) 
@@ -52,9 +66,7 @@ txflow_snapshot <- function( x, as.actor = NULL, audited = FALSE ) {
     
   # -- audit record
   
-  # - configuration 
-  cfg <- cxapp::.cxappconfig()
-  
+
   
   if ( is.null(as.actor) )
     stop( "Actor must be specified for audited actions" )
@@ -66,15 +78,24 @@ txflow_snapshot <- function( x, as.actor = NULL, audited = FALSE ) {
                                                    "object" = digest::digest( paste(lst[ c( "repository", "name") ], collapse = "/"), algo = "sha1", file = FALSE ), 
                                                    "label" = paste( "Get snapshot", lst[["name"]], " specification from data repository", lst[["repository"]] ),
                                                    "actor"  = ifelse( ! is.null(as.actor), as.actor, Sys.info()["user"] ) ) ),
-                    silent = FALSE )
+                    silent = try_silent )
   
-  if ( inherits( audit_rec, "try-error") )
+  if ( inherits( audit_rec, "try-error") ) {
+    cxapp::cxapp_logerr(audit_rec)
     stop( "Could not create audit record" )
+  }
   
-  audit_commit <- try( cxaudit::cxaudit_commit( list( audit_rec ) ), silent = FALSE )
+  audit_commit <- try( cxaudit::cxaudit_commit( list( audit_rec ) ), silent = try_silent )
   
-  if ( inherits( audit_commit, "try-error") || is.null(audit_commit) || ! audit_commit )
+  if ( inherits( audit_commit, "try-error") || is.null(audit_commit) || ! audit_commit ) {
+    
+    if ( inherits( audit_commit, "try-error") )
+      cxapp::cxapp_logerr(audit_commit)
+    else
+      cxapp::cxapp_logerr("Failed to commit audit record")
+                          
     stop( "Failed to commit audit record" )
+  }
 
   
   

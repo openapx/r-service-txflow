@@ -6,17 +6,29 @@
 
 txflow_listrepositories <- function() {
 
+  
+  # - configuration
+  cfg <- cxapp::.cxappconfig()
+  
+  try_silent <- ! cfg$option( "mode.debug", unset = FALSE )
+  
+  
+  
   # -- connect storage 
-  store <- try( txflow.service::txflow_store(), silent = FALSE )
+  store <- try( txflow.service::txflow_store(), silent = try_silent )
     
-  if ( inherits(store, "try-error") )
+  if ( inherits(store, "try-error") ) {
+    cxapp::cxapp_logerr(store)
     return(invisible(list()))
+  }
   
   # -- repositories
-  lst <- try( store$repositories(), silent = FALSE )
+  lst <- try( store$repositories(), silent = try_silent )
   
-  if ( inherits(lst, "try-error") )
+  if ( inherits(lst, "try-error") ) {
+    cxapp::cxapp_logerr(lst)
     return(invisible(list()))
+  }
   
 
   return(invisible(lst))

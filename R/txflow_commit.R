@@ -16,12 +16,19 @@
 txflow_commit <- function( x, snapshot = NULL, as.actor = NULL ) {
 
 
+  # -- configuration
+  cfg <- cxapp::.cxappconfig()
+  
+  try_silent <- ! cfg$option( "mode.debug", unset = FALSE )
+  
   
   # -- connect to work area
-  wrk <- try( txflow.service::txflow_workarea( work = x ), silent = FALSE )
+  wrk <- try( txflow.service::txflow_workarea( work = x ), silent = try_silent )
   
-  if ( inherits( wrk, "try-error" ) )
+  if ( inherits( wrk, "try-error" ) ) {
+    cxapp::cxapp_logerr(wrk)
     stop( "Work area for snapshot could not be established" )
+  }
   
   wrk_area <- base::unname(attributes(wrk)[["path"]])
 
@@ -40,10 +47,12 @@ txflow_commit <- function( x, snapshot = NULL, as.actor = NULL ) {
 
   # - import snapshot specification
   
-  snapshot_spec <- try( jsonlite::fromJSON( file.path( wrk_area, snapshot_spec_file, fsep = "/" )), silent = FALSE )
+  snapshot_spec <- try( jsonlite::fromJSON( file.path( wrk_area, snapshot_spec_file, fsep = "/" )), silent = try_silent )
   
-  if ( inherits( snapshot_spec, "try-error" ) )
+  if ( inherits( snapshot_spec, "try-error" ) ) {
+    cxapp::cxapp_logerr( snapshot_spec )
     stop( "Could not import snapshot specification" )
+  }
 
   # note: needed for future reference
   snapshot_spec_scope <- paste( snapshot_spec[ c( "repository", "snapshot") ], collapse = "/" )
@@ -82,14 +91,11 @@ txflow_commit <- function( x, snapshot = NULL, as.actor = NULL ) {
   }
 
 
-  if ( "unknown" %in% commit_scope )
+  if ( any( c("unknown", "undefined") %in% commit_scope ) )
     stop( "Commit snapshot not defined" )
 
   
     
-  # note: at this point ... we know repository and snapshot
-  
-  
 
   # - specified snapshot is commit scope 
   if ( ! txflow.service::txflow_validname( paste(commit_scope, collapse = "/"), context = "snapshot") )
@@ -97,20 +103,48 @@ txflow_commit <- function( x, snapshot = NULL, as.actor = NULL ) {
   
   
   
+  # -- snapshot spec not equal to commit scope
+  
+  if ( snapshot_spec_file != paste0( "snapshot-", commit_scope[["snapshot"]], ".json" ) ) {
+
+    old_spec <- file.path( wrk_area, snapshot_spec_file, fsep = "/" )
+    new_spec <- file.path( wrk_area, paste0( "snapshot-", commit_scope[["snapshot"]], ".json" ), fsep = "/" )
+    
+    if ( ! file.rename( old_spec, new_spec) )
+      stop( "Could not stage specification as a new snapshot" )
+    
+    
+    # note: new spec file
+    snapshot_spec_file <- base::basename(new_spec)
+  }
+  
+  
+  
+
+  # note: at this point ... we know repository and snapshot
+  
+    
+  
+  
+  
   # -- purge any existing snapshot contents
-  snapshot_spec[["contents"]] <- list()
+  snapshot_spec[["members"]] <- list()
   
   
   # -- import prior inventory 
   prior_inventory <- character(0)
   
-  lst_inv <- try( base::readLines( file.path( wrk_area, "inventory", fsep = "/"), warn = FALSE ), silent = FALSE )
-  
-  if ( ! inherits( lst_inv, "try-error" ) ) {
+  lst_inv <- try( base::readLines( file.path( wrk_area, "inventory", fsep = "/"), warn = FALSE ), silent = try_silent )
+
+  if ( inherits( lst_inv, "try-error" ) ) {
+    cxapp::cxapp_logerr(lst_inv)
+  } else {
+    
     # - parse inventory
     #   note: expecting format <digest><space><file>
     prior_inventory <- gsub( "^(.*)\\s.*$", "\\1", lst_inv )
     base::names(prior_inventory) <- gsub( "^.*\\s(.*)$", "\\1", lst_inv )
+    
   }
 
   
@@ -120,8 +154,6 @@ txflow_commit <- function( x, snapshot = NULL, as.actor = NULL ) {
   }, USE.NAMES = TRUE )    
     
   
-  # -- configuration
-  cfg <- cxapp::.cxappconfig()
   
   
   
@@ -158,7 +190,7 @@ txflow_commit <- function( x, snapshot = NULL, as.actor = NULL ) {
   # - initiate commit list
   lst_commit <- character(0)
   
-  
+  lst_named_blobs <- character(0)
   
   
   # - process blobs and actions
@@ -172,10 +204,12 @@ txflow_commit <- function( x, snapshot = NULL, as.actor = NULL ) {
 
     
     # - import blob specification
-    blob_spec <- try( jsonlite::fromJSON( file.path( wrk_area, xfile, fsep = "/" )), silent = FALSE )
+    blob_spec <- try( jsonlite::fromJSON( file.path( wrk_area, xfile, fsep = "/" )), silent = try_silent )
     
-    if ( inherits( blob_spec, "try-error") )
+    if ( inherits( blob_spec, "try-error") ) {
+      cxapp::cxapp_logerr(blob_spec)
       next()
+    }
     
     
     # - process deleted blobs   
@@ -191,8 +225,13 @@ txflow_commit <- function( x, snapshot = NULL, as.actor = NULL ) {
     } # end of if-statement for deleted blobs
 
 
+    # -- conflict ... name should be unique so use first find
+    if ( blob_spec[["name"]] %in% lst_named_blobs )
+      next()
+    
+    
     # - add blob to specification
-    snapshot_spec[["contents"]][[ blob_spec[["name"]] ]] <- blob_spec
+    snapshot_spec[["members"]][[ length(snapshot_spec[["members"]]) + 1 ]] <- blob_spec
 
     
     # - retain in blob spec
@@ -279,35 +318,21 @@ txflow_commit <- function( x, snapshot = NULL, as.actor = NULL ) {
     # - clean up
     base::rm( list = "blob_spec" )
         
-  }
+  }  #  end of if-statement adding blobs to snapshot spec
   
   
   
-  
-  
-  # - remove conflicting snapshot spec 
-  
-  if ( snapshot_spec_file != paste0( "snapshot-", commit_scope[["snapshot"]], ".json" ) ) {
-    
-    
-    old_spec <- file.path( wrk_area, snapshot_spec_file, fsep = "/" )
-    new_spec <- file.path( wrk_area, paste0( "snapshot-", commit_scope[["snapshot"]], ".json" ), fsep = "/" )
-    
-    if ( ! file.rename( old_spec, new_spec) )
-      stop( "Could not stage specification as a new snapshot" )
-    
-
-    # note: new spec file
-    snapshot_spec_file <- base::basename(new_spec)
-  }
   
 
-    
   # - update snapshot specification 
   
-  if ( inherits( try( base::writeLines( jsonlite::toJSON( snapshot_spec, pretty = TRUE, auto_unbox = TRUE ),
-                                        con = file.path( wrk_area, snapshot_spec_file, fsep = "/" )), silent = FALSE ), "try-error") )
+  snapshot_spec_write <- try( base::writeLines( jsonlite::toJSON( snapshot_spec, pretty = TRUE, auto_unbox = TRUE ),
+                                                con = file.path( wrk_area, snapshot_spec_file, fsep = "/" )), silent = try_silent )
+  
+  if ( inherits( snapshot_spec_write, "try-error") ) {
+    cxapp::cxapp_logerr(snapshot_spec_write)
     stop( "Could not update snapshot specification" )
+  }
 
   
   lst_commit <- append( lst_commit, 
@@ -319,10 +344,12 @@ txflow_commit <- function( x, snapshot = NULL, as.actor = NULL ) {
 
   # -- connect with storage
   
-  strg <- try( txflow.service::txflow_store(), silent = FALSE )
+  strg <- try( txflow.service::txflow_store(), silent = try_silent )
   
-  if ( inherits(strg, "try-error") )
+  if ( inherits(strg, "try-error") ) {
+    cxapp::cxapp_logerr( strg )
     stop( "Storage not available" )
+  }
   
   
   
@@ -346,42 +373,30 @@ txflow_commit <- function( x, snapshot = NULL, as.actor = NULL ) {
   lst_blobs <- lst_objs[ base::trimws(tools::file_ext(lst_objs)) == "" ]
   
   
-  for ( xblob in lst_blobs ) {
+  for ( xblob in snapshot_spec[["members"]] ) {
     
 
-    blob_spec_file <- file.path( wrk_area, paste0( xblob, ".json"), fsep = "/" )
+    blob_spec_file <- file.path( wrk_area, paste0( xblob[["blobs"]], ".json"), fsep = "/" )
     
     # - no blob specification ... nothing to do
     if ( ! file.exists( blob_spec_file ) )
       next()
     
     
-    # - update specification 
-
-    blob_spec <- try( jsonlite::fromJSON( blob_spec_file ), silent = FALSE )
+    # - add blob spec file
+    commit_files <- append( commit_files, blob_spec_file )
     
-    if ( inherits( blob_spec, "try-error") || ! "name" %in% base::names(blob_spec) )
-      next()
-
-    snapshot_spec[["contents"]][[ base::unname(blob_spec[["name"]]) ]] <- blob_spec
-
-    # - register blob files to commit 
-    commit_files <- append( commit_files, 
-                            c( file.path( wrk_area, xblob, fsep = "/"),
-                               file.path( wrk_area, base::basename(blob_spec_file), fsep = "/" ) ) )    
+    
+    # - add blob
+    #   note: blob might be missing if you are adding item by reference
+    if ( file.exists( file.path( wrk_area, xblob[["blobs"]], fsep = "/") ) )
+      commit_files <- append( commit_files, 
+                              file.path( wrk_area, xblob[["blobs"]], fsep = "/") )
     
   }  # end of for-statement for blobs in work area
   
   
   
-  # - save updates to snapshot spec
-  
-  if ( inherits( try( base::writeLines( jsonlite::toJSON( snapshot_spec, pretty = TRUE, auto_unbox = TRUE ),
-                                        con = file.path( wrk_area, snapshot_spec_file, fsep = "/" )), silent = FALSE ), "try-error" ) )
-    stop( "Snapshot specification could not be initiated in the work area")
-  
-  
-
   # - add spec as last item to commit
   commit_files <- append( commit_files, 
                           file.path( wrk_area, snapshot_spec_file, fsep = "/" ) )
@@ -401,9 +416,12 @@ txflow_commit <- function( x, snapshot = NULL, as.actor = NULL ) {
   
   # - commit 
 
-  commit_rslt <- try( strg$commit( commit_files, repository = commit_scope["repository"], overwrite = TRUE ), silent = FALSE )
+  commit_rslt <- try( strg$commit( commit_files, repository = commit_scope["repository"], overwrite = TRUE ), silent = try_silent )
 
+  if ( inherits( commit_rslt, "try-error") )
+    cxapp::cxapp_logerr( commit_rslt )
 
+  
   # - auditor
 
   audit_records <- list()
@@ -426,21 +444,30 @@ txflow_commit <- function( x, snapshot = NULL, as.actor = NULL ) {
 
 
     # create main audit record
-    audit_rec <- try( cxaudit::cxaudit_record( audit_rec_info[ ! base::startsWith( base::names(audit_rec_info), "_" ) ] ), silent = FALSE )
+    audit_rec <- try( cxaudit::cxaudit_record( audit_rec_info[ ! base::startsWith( base::names(audit_rec_info), "_" ) ] ), silent = try_silent )
 
     if ( inherits( audit_rec, "try-error" ) )
       stop( "Could not create an audit record for blob")
 
         
     if ( "_attributes_" %in% base::names(audit_rec_info) && ( length(audit_rec_info[["_attributes_"]]) > 0 ) )
-      for ( xattr in audit_rec_info[["_attributes_"]] )
-        if ( inherits( try( audit_rec$setattribute( xattr[["key"]], 
-                                                    value = ifelse( "value" %in% base::names(xattr), xattr[["value"]], ""), 
-                                                    label = ifelse( "label" %in% base::names(xattr), xattr[["label"]], xattr[["key"]]),
-                                                    qualifier = ifelse( "qualifier" %in% base::names(xattr), xattr[["qualifier"]], "") ), 
-                            silent = FALSE ), "try-error" ) )
+      for ( xattr in audit_rec_info[["_attributes_"]] ) {
+        
+        attrs_add <- try( audit_rec$setattribute( xattr[["key"]], 
+                                                  value = ifelse( "value" %in% base::names(xattr), xattr[["value"]], ""), 
+                                                  label = ifelse( "label" %in% base::names(xattr), xattr[["label"]], xattr[["key"]]),
+                                                  qualifier = ifelse( "qualifier" %in% base::names(xattr), xattr[["qualifier"]], "") ), 
+                          silent = try_silent )
+        
+        if ( inherits( attrs_add, "try-error" ) ) {
+          cxapp::cxapp_logerr(attrs_add)
           stop( "Could not register attributer for audit record")
+        }
+        
     
+        base::rm( list = "attrs_add" )
+        
+      } # end for-statement on record attributes
     
 
     audit_records[[ length(audit_records) + 1 ]] <- audit_rec
@@ -450,10 +477,17 @@ txflow_commit <- function( x, snapshot = NULL, as.actor = NULL ) {
   }
 
 
-  audit_commit <- try( cxaudit::cxaudit_commit( audit_records ), silent = FALSE )
+  audit_commit <- try( cxaudit::cxaudit_commit( audit_records ), silent = try_silent )
 
-  if ( inherits( audit_commit, "try-error") || ! audit_commit )
+  if ( inherits( audit_commit, "try-error") || ! audit_commit ) {
+    
+    if ( inherits( audit_commit, "try-error") )
+      cxapp::cxapp_logerr(audit_commit)
+    else
+      cxapp::cxapp_logerr( "Failed to commit audit records" )
+    
     stop( "Failed to commit audit records")
+  }
 
 
 

@@ -71,6 +71,7 @@ function( req, res ) {
   lst <- try( as.list( txflow.service::txflow_listrepositories() ), silent = FALSE )
   
   if ( inherits( lst, "try-error" ) ) {
+    cxapp::cxapp_logerr(lst)
     cxapp::cxapp_log("Failed to get list of repositories", attr = log_attributes )
     res$status <- 500  # Internal Error
     return( list( "error" = "Failed to get list of repositories") )    
@@ -177,6 +178,7 @@ function( repo, req, res ) {
   lst <- try( as.list( txflow.service::txflow_repository( repo, as.actor = service_principal ) ), silent = FALSE )
   
   if ( inherits( lst, "try-error" ) ) {
+    cxapp::cxapp_logerr(lst)
     cxapp::cxapp_log("Failed to create repository", attr = log_attributes )
     res$status <- 500  # Internal Error
     return( list( "error" = "Failed to create repository") )    
@@ -270,6 +272,7 @@ function( repo, req, res ) {
   lst <- try( as.list( txflow.service::txflow_listsnapshots( repo ) ), silent = FALSE )
   
   if ( inherits( lst, "try-error" ) ) {
+    cxapp::cxapp_logerr(lst)
     cxapp::cxapp_log("Failed to get list of snapshots", attr = log_attributes )
     res$status <- 500  # Internal Error
     return( list( "error" = "Failed to get list of snapshots") )    
@@ -369,6 +372,7 @@ function( repo, snapshot, req, res ) {
   lst <- try( txflow.service::txflow_snapshot( paste0(repo, "/", snapshot), as.actor = attr(auth_result, "principal"), audited = TRUE), silent = FALSE )
   
   if ( inherits( lst, "try-error" ) ) {
+    cxapp::cxapp_logerr(lst)
     cxapp::cxapp_log("Failed to get snapshot specification", attr = log_attributes )
     res$status <- 500  # Internal Error
     return( list( "error" = "Failed to get snapshot specification") )    
@@ -474,6 +478,7 @@ function( repo, reference, req, res ) {
   repo_obj <- try( txflow.service::txflow_getresource( base::tolower(paste( repo, reference, sep = "/" )), as.actor = attr(auth_result, "principal") ), silent = FALSE )
   
   if ( inherits( repo_obj, "try-error") ) {
+    cxapp::cxapp_logerr(repo_obj)
     cxapp::cxapp_log("Failed to get repository resource", attr = log_attributes )
     res$status <- 500  # Internal Error
     return( list( "error" = "Failed to get repository resource") )    
@@ -577,6 +582,7 @@ function( repo, snapshot, reference, req, res ) {
   repo_obj <- try( txflow.service::txflow_getresource( base::tolower(paste( repo, snapshot, reference, sep = "/" )), as.actor = attr(auth_result, "principal") ), silent = FALSE )
   
   if ( inherits( repo_obj, "try-error") ) {
+    cxapp::cxapp_logerr(repo_obj)
     cxapp::cxapp_log( "Failed to get repository snapshot resource from snapshot", attr = log_attributes )
     res$status <- 500  # Internal Error
     return( list( "error" = paste( "Failed to get resource from snapshot", snapshot, "in repository", repo ) ) )    
@@ -607,21 +613,15 @@ function( repo, snapshot, reference, req, res ) {
 
 
 
-
-
 #* Create a working copy
 #*
-#* @get /api/work/<repository>/<snapshot>
+#* @post /api/work
 #* 
-#* @param repsitory Respository reference
-#* @param snapshot Snapshot reference
-#*
-#*
-#* @response 200 OK
+#* @response 201 Created
 #* @response 400 Bad Request
 #* @response 500 Internal Error
 
-function( repository, snapshot, req, res ) {
+function( req, res ) {
   
   
   cfg <- cxapp::.cxappconfig()
@@ -677,36 +677,255 @@ function( repository, snapshot, req, res ) {
   
 
   # -- get work area reference
+
+  attrs <- character(0)
   
-  snapshot_ref <- paste( repository, snapshot, sep = "/" )
+  attrs <- append( attrs, 
+                   unlist( req$argsBody, use.names = TRUE ) )
+  
+  # - standardize on lower case 
+  base::names(attrs) <- base::tolower(base::names(attrs))
+  
+  
+  snapshot_ref <- NA
+  
+  
+  if ( all( c( "repository", "snapshot" ) %in% base::names(attrs) ) )
+    snapshot_ref <- paste( attrs[ c( "repository", "snapshot") ], collapse = "/" )
+  
+  if ( ! "repository" %in% base::names(attrs) && "snapshot" %in% base::names(attrs) )
+    snapshot_ref <- base::unname(attrs["snapshot"])
+    
+
+  if ( "repository" %in% base::names(attrs) && ! "snapshot" %in% base::names(attrs) )
+    snapshot_ref <- paste( attrs[ "repository" ], "undefined", sep = "/" )
+  
+
+  if ( is.na(snapshot_ref) || ! txflow.service::txflow_validname( snapshot_ref, context = "snapshot") ) {
+    cxapp::cxapp_log( "Work area request incomplete", attr = log_attributes)
+    res$status <- 400  # Bad request
+    return(list( "error" = "Missing repository and/or snapshot reference" ))
+  }
+    
+    
+  
+  # -- create work area
   
   wrk <- try( txflow.service::txflow_workarea( snapshot = snapshot_ref ), silent = FALSE )
 
   if ( inherits( wrk, "try-error" ) || is.null(wrk) ) {
 
-    msg <- ifelse( is.null(snapshot_ref), 
-                   "Failed to create empty work area", 
-                   paste("Failed to create work area associated with snapshot", snapshot_ref ) )
+    if ( inherits( wrk, "try-error" ) )
+      cxapp::cxapp_logerr(wrk)
     
+    msg <- ifelse( is.na(snapshot_ref),
+                   "Failed to create empty work area",
+                   paste("Failed to create work area associated with snapshot", snapshot_ref ) )
+
     cxapp::cxapp_log( msg, attr = log_attributes )
-    res$status <- 500  # Not Found
+    res$status <- 500  # Internal error
     return( list( "error" = msg ) )
   }
-    
-  
 
-  res$status <- 200  # OK
+
   
+  res$status <- 201  # Created
+
   res$setHeader( "content-type", "application/json" )
   res$body <- jsonlite::toJSON( as.list(wrk), auto_unbox = TRUE, pretty = TRUE )
-  
-  cxapp::cxapp_log( ifelse( is.null(snapshot_ref), 
+
+  cxapp::cxapp_log( ifelse( is.null(snapshot_ref),
                             paste( "Created empty work area", wrk),
                             paste( "Created work area", wrk, "associated with snapshot", snapshot_ref ) ),
                     attr = log_attributes )
+
+  
+  return(res)
+}
+
+
+
+
+#* List working copies
+#*
+#* @get /api/work
+#* 
+#* @response 200 OK
+#* @response 500 Internal Error
+
+function( work, req, res ) {
+  
+  
+  cfg <- cxapp::.cxappconfig()
+  
+  
+  log_attributes <- c( base::toupper(req$REQUEST_METHOD), 
+                       req$REMOTE_ADDR, 
+                       req$PATH_INFO )
+  
+  
+  
+  # -- Authorization
+  
+  if ( ! "HTTP_AUTHORIZATION" %in% names(req) ) {
+    cxapp::cxapp_log("Authorization header missing", attr = log_attributes)
+    res$status <- 401  # Unauthorized
+    return("Authorization header missing")
+  }
+  
+  
+  auth_result <- try( cxapp::cxapp_authapi( req$HTTP_AUTHORIZATION ), silent = TRUE )
+  
+  if ( inherits( auth_result, "try-error" ) ) {
+    cxapp::cxapp_log("Authorization failed", attr = log_attributes)
+    res$status <- 401  # Unauthorized
+    return("Authorization failed")
+  }
+  
+  
+  if ( ! auth_result ) {
+    cxapp::cxapp_log("Access denied", attr = log_attributes)
+    res$status <- 403  # Forbidden
+    return("Access denied")
+  }
+  
+  
+  # -- identify authorized service or user 
+  service_principal <- ifelse( ! is.null( attr(auth_result, "principal") ), attr(auth_result, "principal"), "unkown" )
+  
+  
+  # - log authentication
+  
+  cxapp::cxapp_log( paste( "Authorized", service_principal ),
+                    attr = log_attributes )
+  
+  
+  # - add principal to log attributes
+  if ( ! is.null( attr(auth_result, "principal") ) )
+    log_attributes <- append( log_attributes, attr(auth_result, "principal") )
+  
+  
+  
+  
+  
+  
+  # -- list work areas
+  
+  wrk <- try( txflow.service::txflow_listworkareas(), silent = FALSE )
+  
+  if ( inherits( wrk, "try-error" ) ) {
+    
+    if ( inherits( wrk, "try-error" ) )
+      cxapp::cxapp_logerr(wrk)
+    
+    msg <- "Failed to list work areas"
+    
+    cxapp::cxapp_log( msg, attr = log_attributes )
+    res$status <- 500  # Internal error
+    return( list( "error" = msg ) )
+  }
+  
+  
+  
+  res$status <- 200  # OK
+  res$setHeader( "content-type", "application/json" )
+  res$body <- jsonlite::toJSON( as.list(wrk), auto_unbox = TRUE, pretty = TRUE )
+  
+  cxapp::cxapp_log( "List work areas", attr = log_attributes )
   
   
   return(res)
+}
+
+
+
+#* Drop a working copy
+#*
+#* @delete /api/work/<work>
+#* 
+#* @response 200 OK
+#* @response 500 Internal Error
+
+function( work, req, res ) {
+  
+  
+  cfg <- cxapp::.cxappconfig()
+  
+  
+  log_attributes <- c( base::toupper(req$REQUEST_METHOD), 
+                       req$REMOTE_ADDR, 
+                       req$PATH_INFO )
+  
+  
+  
+  # -- Authorization
+  
+  if ( ! "HTTP_AUTHORIZATION" %in% names(req) ) {
+    cxapp::cxapp_log("Authorization header missing", attr = log_attributes)
+    res$status <- 401  # Unauthorized
+    return("Authorization header missing")
+  }
+  
+  
+  auth_result <- try( cxapp::cxapp_authapi( req$HTTP_AUTHORIZATION ), silent = TRUE )
+  
+  if ( inherits( auth_result, "try-error" ) ) {
+    cxapp::cxapp_log("Authorization failed", attr = log_attributes)
+    res$status <- 401  # Unauthorized
+    return("Authorization failed")
+  }
+  
+  
+  if ( ! auth_result ) {
+    cxapp::cxapp_log("Access denied", attr = log_attributes)
+    res$status <- 403  # Forbidden
+    return("Access denied")
+  }
+  
+  
+  # -- identify authorized service or user 
+  service_principal <- ifelse( ! is.null( attr(auth_result, "principal") ), attr(auth_result, "principal"), "unkown" )
+  
+  
+  # - log authentication
+  
+  cxapp::cxapp_log( paste( "Authorized", service_principal ),
+                    attr = log_attributes )
+  
+  
+  # - add principal to log attributes
+  if ( ! is.null( attr(auth_result, "principal") ) )
+    log_attributes <- append( log_attributes, attr(auth_result, "principal") )
+  
+  
+  
+  
+  
+
+  # -- drop work area
+  
+  wrk <- try( txflow.service::txflow_dropworkarea( work ), silent = FALSE )
+  
+  if ( inherits( wrk, "try-error" ) || ! inherits(wrk, "logical") || ! wrk ) {
+    
+    if ( inherits( wrk, "try-error" ) )
+      cxapp::cxapp_logerr(wrk)
+    
+    msg <- "Failed to drop work area"
+    
+    cxapp::cxapp_log( msg, attr = log_attributes )
+    res$status <- 500  # Internal error
+    return( list( "error" = msg ) )
+  }
+  
+  
+  
+  res$status <- 200  # OK
+  
+  cxapp::cxapp_log( "Work area dropped", attr = log_attributes )
+  
+  
+  return(list("message" = "Work area dropped"))
 }
 
 
@@ -794,8 +1013,14 @@ function( work, reference, req, res ) {
 
   tmp_file <- base::tempfile( pattern = "txflow-upload-", tmpdir = base::tempdir(), fileext = "" )
 
-  if ( inherits( try( base::writeBin( req$body, tmp_file ), silent = FALSE ), "try-error" ) ||
+  tmp_file_write <- try( base::writeBin( req$body, tmp_file ), silent = FALSE )
+  
+  if ( inherits( tmp_file_write, "try-error" ) ||
        ! file.exists( tmp_file ) ) {
+    
+    if ( inherits( tmp_file_write, "try-error") )
+      cxapp::cxapp_logerr(tmp_file_write)
+    
     cxapp::cxapp_log( "Unable to save submitted content", attr = log_attributes)
     res$status <- 500  # Internal Error
     return(list("error" = "Unable to process submitted content"))
@@ -808,12 +1033,16 @@ function( work, reference, req, res ) {
   
   attrs <- append( attrs, 
                    unlist( req$argsQuery, use.names = TRUE ) )
-  
+
   # - force argument names to lower case
-  if ( ! is.null(attrs) && ! is.null(base::names(attrs)) )
+  if (  (length(attrs) > 0) && ! is.null(attrs) && ! is.null(base::names(attrs)) )
     base::names(attrs) <- base::tolower(base::names(attrs))
   
 
+  # - url decode bespoke types
+  if ( "type" %in% base::names(attrs) )
+    attrs["type"] <- base::tolower(base::trimws(utils::URLdecode(attrs["type"])))
+  
   
   # - ensure name, reference and mime is associated with upload reference
   
@@ -827,12 +1056,12 @@ function( work, reference, req, res ) {
     attrs["mime"] <- tools::file_ext( base::tolower(base::trimws(reference)) )
   
 
-
   # -- add content to work area
   
   rslt <- try( txflow.service::txflow_addfile( tmp_file, work = work, attrs = attrs ), silent = FALSE )
   
   if ( inherits( rslt, "try-error") ) {
+    cxapp::cxapp_logerr(rslt)
     cxapp::cxapp_log( "Failed to save submitted content to work area", attr = log_attributes)
     res$status <- 500  # Internal Error
     return(list("error" = "Failed to save submitted content to work area"))
@@ -928,6 +1157,7 @@ function( work, reference, req, res ) {
   rslt <- try( txflow.service::txflow_dropfile( reference, work = work ), silent = FALSE )
   
   if ( inherits( rslt, "try-error") ) {
+    cxapp::cxapp_logerr(rslt)
     cxapp::cxapp_log( "Failed to drop content from work area", attr = log_attributes)
     res$status <- 500  # Internal Error
     return(list("error" = "Failed to drop content from work area"))
@@ -1048,6 +1278,7 @@ function( work, reference, req, res ) {
   
   
   if ( inherits( obj_ref, "try-error") ) {
+    cxapp::cxapp_logerr(obj_ref)
     cxapp::cxapp_log( "Failed to add reference to work area", attr = log_attributes)
     res$status <- 500  # Internal Error
     return(list("error" = "Failed to add reference to work area"))
@@ -1167,6 +1398,7 @@ function( work, req, res ) {
   rslt <- try( txflow.service::txflow_commit( work, snapshot = attrs[["snapshot"]], as.actor = attr(auth_result, "principal") ), silent = FALSE )
 
   if ( inherits( rslt, "try-error" ) || is.null(rslt) ) {
+    cxapp::cxapp_logerr(rslt)
     cxapp::cxapp_log( "Commit of work area failed", attr = log_attributes)
     res$status <- 409  # Conflict
     return(list("error" = "Commit of work area failed"))

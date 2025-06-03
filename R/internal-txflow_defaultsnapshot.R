@@ -16,10 +16,10 @@
   base::names(spec) <- c( "repository", "snapshot" )
   
   
-  def <- list( "version" = "0.1", 
+  def <- list( "version" = "1.0.0", 
                "name" = spec[["snapshot"]], 
                "repository" = spec[["repository"]], 
-               "contents" = list() )
+               "members" = list() )
   
   return(invisible(def))
 }
