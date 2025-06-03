@@ -1367,7 +1367,7 @@ by_resource <- snapshot_first_entry[["blobs"]]
 We can retrieve a data file or blob by its name within the snapshot.
 
 ```
-# -- Get data file or blob by name in the snapshot 
+# -- Get data file by name in the snapshot 
 #    GET /api/repositories/<repository>/snapshots/<snapshot>/<name>
 
 output_file_by_name <- file.path( base::getwd(), by_name )
@@ -1391,7 +1391,7 @@ We can also retrieve the same file by using the `blobs` reference within the
 snapshot entry.
 
 ```
-# -- Get data file or blob by name in the snapshot 
+# -- Get data file by blob in the snapshot 
 #    GET /api/repositories/<repository>/snapshots/<snapshot>/<resource>
 
 output_file_by_blob <- file.path( base::getwd(), by_resource )
@@ -1456,15 +1456,15 @@ in the snapshot specification. Note, that dropping a data file or blob from a
 snapshot does not delete it from the repository.
 
 ```
-# -- Get snapshot work area using existing snapshot
-#    GET /api/work/<repository>/<snapshot>
+# -- Create snapshot work area using existing snapshot
+#    POST /api/work
 
 edit_work_area <- httr2::request( url_to_txflow ) |>
-  httr2::req_method("GET") |>
+  httr2::req_method("POST") |>
   httr2::req_url_path("/api/work") |>
-  httr2::req_url_path_append( repository ) |>
-  httr2::req_url_path_append( snapshot ) |>
   httr2::req_auth_bearer_token( my_token_in_clear_text ) |>
+  httr2::req_body_form( "repository" = repository, 
+                        "snapshot" = snapshot ) |>
   httr2::req_perform() |>
   httr2::resp_body_json()
 
@@ -1582,16 +1582,17 @@ Let us start with setting up a work area.
 
 ```
 # -- Get snapshot work area using existing snapshot
-#    GET /api/work/<repository>/<snapshot>
+#    POST /api/work
 
 edit_work_area2 <- httr2::request( url_to_txflow ) |>
-  httr2::req_method("GET") |>
+  httr2::req_method("POST") |>
   httr2::req_url_path("/api/work") |>
-  httr2::req_url_path_append( repository ) |>
-  httr2::req_url_path_append( snapshot ) |>
   httr2::req_auth_bearer_token( my_token_in_clear_text ) |>
+  httr2::req_body_form( "repository" = repository, 
+                        "snapshot" = snapshot ) |>
   httr2::req_perform() |>
   httr2::resp_body_json()
+
 
 edit_work_area2 <- unlist(edit_work_area2)
 ```
