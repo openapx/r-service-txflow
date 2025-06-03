@@ -1057,7 +1057,7 @@ To make the examples work, we define two standard objects, the first is the URL
 The second object is the access token.
 
 ```
-url_to_auditor <- "http://auditor.example.com:81"
+url_to_txflow <- "http://txflow.example.com:81"
 my_token_in_clear_text <- "<access token>"
 ```
 
@@ -1103,7 +1103,7 @@ Information on the service and service configuration can easily be obtained.
 # -- service information
 #    GET /api/info
 
-info <- httr2::request( url_to_auditor ) |>
+info <- httr2::request( url_to_txflow ) |>
   httr2::req_method("GET") |>
   httr2::req_url_path("/api/info") |>
   httr2::req_auth_bearer_token( my_token_in_clear_text ) |>
@@ -1125,7 +1125,7 @@ A data repository is created in a single step.
 
 repository <- "example-01"
 
-create_repo <- httr2::request( url_to_auditor ) |>
+create_repo <- httr2::request( url_to_txflow ) |>
   httr2::req_method("PUT") |>
   httr2::req_url_path("/api/repositories") |>
   httr2::req_url_path_append( repository ) |>
@@ -1139,7 +1139,7 @@ The new repository name is returned.
 <br/>
 
 
-##### Get a Snapshot Work Area
+##### Create a Snapshot Work Area
 Snapshots are created, edited and saved using a snapshot work area.
 
 To create a snapshot work area, simply request one. You can have multiple work
@@ -1152,16 +1152,16 @@ exist within a repository.
 
 ```
 # -- Get snapshot work area
-#    GET /api/work/<repository>/<snapshot>
+#    POST /api/work
 
 snapshot <- "mysnapshot-01"
 
-work_area <- httr2::request( url_to_auditor ) |>
-  httr2::req_method("GET") |>
+work_area <- httr2::request( url_to_txflow ) |>
+  httr2::req_method("POST") |>
   httr2::req_url_path("/api/work") |>
-  httr2::req_url_path_append( repository ) |>
-  httr2::req_url_path_append( snapshot ) |>
   httr2::req_auth_bearer_token( my_token_in_clear_text ) |>
+  httr2::req_body_form( "repository" = repository, 
+                        "snapshot" = snapshot ) |>
   httr2::req_perform() |>
   httr2::resp_body_json()
 
@@ -1192,7 +1192,7 @@ added is what I would commonly refer to as a data blob.
 
 data_blob_file <- file.path( base::getwd(), "data", "test-data-01.txt" )
 
-add_data_blob <- httr2::request( url_to_auditor ) |>
+add_data_blob <- httr2::request( url_to_txflow ) |>
   httr2::req_method("PUT") |>
   httr2::req_url_path("/api/work") |>
   httr2::req_url_path_append( work_area ) |>
@@ -1225,7 +1225,7 @@ example below, we set the properties `type`, `class`, `reference` and `mime`.
 
 data_file <- file.path( base::getwd(), "data", "nottem.rds" )
 
-add_data_file <- httr2::request( url_to_auditor ) |>
+add_data_file <- httr2::request( url_to_txflow ) |>
   httr2::req_method("PUT") |>
   httr2::req_url_path("/api/work") |>
   httr2::req_url_path_append( work_area ) |>
@@ -1258,7 +1258,7 @@ available.
 # -- Commit work area to the repository
 #    PUT /api/commit/<work>
 
-commit <- httr2::request( url_to_auditor ) |>
+commit <- httr2::request( url_to_txflow ) |>
   httr2::req_method("PUT") |>
   httr2::req_url_path("/api/commit") |>
   httr2::req_url_path_append( work_area ) |>
@@ -1282,7 +1282,7 @@ snapshots.
 # -- Get a list of repositories
 #    GET /api/repositories
 
-lst_repositories <- httr2::request( url_to_auditor ) |>
+lst_repositories <- httr2::request( url_to_txflow ) |>
   httr2::req_method("GET") |>
   httr2::req_url_path("/api/repositories") |>
   httr2::req_auth_bearer_token( my_token_in_clear_text ) |>
@@ -1299,7 +1299,7 @@ using the repository created at the beginning for our examples.
 # -- Get a list of snapshots for a repository
 #    GET /api/repositories/<repository>/snapshots
 
-lst_snapshots <- httr2::request( url_to_auditor ) |>
+lst_snapshots <- httr2::request( url_to_txflow ) |>
   httr2::req_method("GET") |>
   httr2::req_url_path("/api/repositories") |>
   httr2::req_url_path_append( repository ) |>
@@ -1326,7 +1326,7 @@ does not download any snapshot data files or blobs.
 # -- Get a repository snapshot specification
 #    GET /api/repositories/<repository>/snapshots/<snapshot>
 
-snapshot_spec <- httr2::request( url_to_auditor ) |>
+snapshot_spec <- httr2::request( url_to_txflow ) |>
   httr2::req_method("GET") |>
   httr2::req_url_path("/api/repositories") |>
   httr2::req_url_path_append( repository ) |>
@@ -1372,7 +1372,7 @@ We can retrieve a data file or blob by its name within the snapshot.
 
 output_file_by_name <- file.path( base::getwd(), by_name )
 
-base::writeBin( httr2::request( url_to_auditor ) |>
+base::writeBin( httr2::request( url_to_txflow ) |>
                   httr2::req_method("GET") |>
                   httr2::req_url_path("/api/repositories") |>
                   httr2::req_url_path_append( repository ) |>
@@ -1396,7 +1396,7 @@ snapshot entry.
 
 output_file_by_blob <- file.path( base::getwd(), by_resource )
 
-base::writeBin( httr2::request( url_to_auditor ) |>
+base::writeBin( httr2::request( url_to_txflow ) |>
                   httr2::req_method("GET") |>
                   httr2::req_url_path("/api/repositories") |>
                   httr2::req_url_path_append( repository ) |>
@@ -1423,7 +1423,7 @@ the name of the entry is only defined within a snapshot.
 
 output_file_as_repository_resource <- file.path( base::getwd(), "repository_resource" )
 
-base::writeBin( httr2::request( url_to_auditor ) |>
+base::writeBin( httr2::request( url_to_txflow ) |>
                   httr2::req_method("GET") |>
                   httr2::req_url_path("/api/repositories") |>
                   httr2::req_url_path_append( repository ) |>
@@ -1459,7 +1459,7 @@ snapshot does not delete it from the repository.
 # -- Get snapshot work area using existing snapshot
 #    GET /api/work/<repository>/<snapshot>
 
-edit_work_area <- httr2::request( url_to_auditor ) |>
+edit_work_area <- httr2::request( url_to_txflow ) |>
   httr2::req_method("GET") |>
   httr2::req_url_path("/api/work") |>
   httr2::req_url_path_append( repository ) |>
@@ -1477,7 +1477,7 @@ We then drop the named item `mydatablob` from the work area snapshot.
 # -- Drop named item 
 #    DELETE /api/work/<work>/<name>
 
-drop_blob <- httr2::request( url_to_auditor ) |>
+drop_blob <- httr2::request( url_to_txflow ) |>
   httr2::req_method("DELETE") |>
   httr2::req_url_path("/api/work") |>
   httr2::req_url_path_append( edit_work_area ) |>
@@ -1499,7 +1499,7 @@ our previous examples.
 
 cars_data_file <- file.path( base::getwd(), "data", "mtcars.rds" )
 
-cars_add_data_file <- httr2::request( url_to_auditor ) |>
+cars_add_data_file <- httr2::request( url_to_txflow ) |>
   httr2::req_method("PUT") |>
   httr2::req_url_path("/api/work") |>
   httr2::req_url_path_append( edit_work_area ) |>
@@ -1523,7 +1523,7 @@ At this point, we commit the work area but using the new snapshot name
 # -- Commit edited work area to the repository
 #    PUT /api/commit/<work>
 
-commit_edits <- httr2::request( url_to_auditor ) |>
+commit_edits <- httr2::request( url_to_txflow ) |>
   httr2::req_method("PUT") |>
   httr2::req_url_path("/api/commit") |>
   httr2::req_url_path_append( edit_work_area ) |>
@@ -1539,7 +1539,7 @@ Listing the snapshots in the repository includes our new snapshot.
 # -- Get a list of snapshots for a repository
 #    GET /api/repositories/<repository>/snapshots
 
-lst_snapshots <- httr2::request( url_to_auditor ) |>
+lst_snapshots <- httr2::request( url_to_txflow ) |>
   httr2::req_method("GET") |>
   httr2::req_url_path("/api/repositories") |>
   httr2::req_url_path_append( repository ) |>
@@ -1556,7 +1556,7 @@ new snapshot specification.
 # -- Get a repository snapshot specification
 #    GET /api/repositories/<repository>/snapshots/<snapshot>
 
-edited_snapshot_spec <- httr2::request( url_to_auditor ) |>
+edited_snapshot_spec <- httr2::request( url_to_txflow ) |>
   httr2::req_method("GET") |>
   httr2::req_url_path("/api/repositories") |>
   httr2::req_url_path_append( repository ) |>
@@ -1584,7 +1584,7 @@ Let us start with setting up a work area.
 # -- Get snapshot work area using existing snapshot
 #    GET /api/work/<repository>/<snapshot>
 
-edit_work_area2 <- httr2::request( url_to_auditor ) |>
+edit_work_area2 <- httr2::request( url_to_txflow ) |>
   httr2::req_method("GET") |>
   httr2::req_url_path("/api/work") |>
   httr2::req_url_path_append( repository ) |>
@@ -1603,7 +1603,7 @@ the name `cars`.
 # -- Add data file or blob from a previous snapshot by name
 #    PATCH /api/work/<work>/<reference>?snapshot=<snapshot>&name=<name>
 
-add_existing <- httr2::request( url_to_auditor ) |>
+add_existing <- httr2::request( url_to_txflow ) |>
   httr2::req_method("PATCH") |>
   httr2::req_url_path("/api/work") |>
   httr2::req_url_path_append( edit_work_area2 ) |>
@@ -1622,7 +1622,7 @@ results.
 # -- Commit edited work area to the repository
 #    PUT /api/commit/<work>
 
-commit_edits2 <- httr2::request( url_to_auditor ) |>
+commit_edits2 <- httr2::request( url_to_txflow ) |>
   httr2::req_method("PUT") |>
   httr2::req_url_path("/api/commit") |>
   httr2::req_url_path_append( edit_work_area2 ) |>
@@ -1635,7 +1635,7 @@ commit_edits2 <- httr2::request( url_to_auditor ) |>
 # -- Get a repository snapshot specification
 #    GET /api/repositories/<repository>/snapshots/<snapshot>
 
-amended_snapshot_spec <- httr2::request( url_to_auditor ) |>
+amended_snapshot_spec <- httr2::request( url_to_txflow ) |>
   httr2::req_method("GET") |>
   httr2::req_url_path("/api/repositories") |>
   httr2::req_url_path_append( repository ) |>
