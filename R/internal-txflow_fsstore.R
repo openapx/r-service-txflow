@@ -322,7 +322,7 @@
   }
   
   # - snapshot specification
-  snapshot_spec <- try( jsonlite::fromJSON(snapshot_file), silent = .self$.attr[["mode.try.silent"]] )
+  snapshot_spec <- try( jsonlite::fromJSON(snapshot_file, simplifyVector = FALSE), silent = .self$.attr[["mode.try.silent"]] )
 
   if ( inherits(snapshot_spec, "try-error") ) {
     cxapp::cxapp_logerr( snapshot_spec )
@@ -440,7 +440,7 @@
     return(invisible(NULL))
   
   # - snapshot specification
-  snapshot_spec <- try( jsonlite::fromJSON(snapshot_file), silent = .self$.attr[["mode.try.silent"]] )
+  snapshot_spec <- try( jsonlite::fromJSON(snapshot_file, simplifyVector = FALSE), silent = .self$.attr[["mode.try.silent"]] )
   
   if ( inherits(snapshot_spec, "try-error") ) {
     cxapp::cxapp_logerr(snapshot_spec)
