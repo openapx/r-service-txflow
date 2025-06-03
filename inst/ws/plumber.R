@@ -71,6 +71,7 @@ function( req, res ) {
   lst <- try( as.list( txflow.service::txflow_listrepositories() ), silent = FALSE )
   
   if ( inherits( lst, "try-error" ) ) {
+    cxapp::cxapp_logerr(lst)
     cxapp::cxapp_log("Failed to get list of repositories", attr = log_attributes )
     res$status <- 500  # Internal Error
     return( list( "error" = "Failed to get list of repositories") )    
@@ -177,6 +178,7 @@ function( repo, req, res ) {
   lst <- try( as.list( txflow.service::txflow_repository( repo, as.actor = service_principal ) ), silent = FALSE )
   
   if ( inherits( lst, "try-error" ) ) {
+    cxapp::cxapp_logerr(lst)
     cxapp::cxapp_log("Failed to create repository", attr = log_attributes )
     res$status <- 500  # Internal Error
     return( list( "error" = "Failed to create repository") )    
@@ -270,6 +272,7 @@ function( repo, req, res ) {
   lst <- try( as.list( txflow.service::txflow_listsnapshots( repo ) ), silent = FALSE )
   
   if ( inherits( lst, "try-error" ) ) {
+    cxapp::cxapp_logerr(lst)
     cxapp::cxapp_log("Failed to get list of snapshots", attr = log_attributes )
     res$status <- 500  # Internal Error
     return( list( "error" = "Failed to get list of snapshots") )    
@@ -369,6 +372,7 @@ function( repo, snapshot, req, res ) {
   lst <- try( txflow.service::txflow_snapshot( paste0(repo, "/", snapshot), as.actor = attr(auth_result, "principal"), audited = TRUE), silent = FALSE )
   
   if ( inherits( lst, "try-error" ) ) {
+    cxapp::cxapp_logerr(lst)
     cxapp::cxapp_log("Failed to get snapshot specification", attr = log_attributes )
     res$status <- 500  # Internal Error
     return( list( "error" = "Failed to get snapshot specification") )    
@@ -474,6 +478,7 @@ function( repo, reference, req, res ) {
   repo_obj <- try( txflow.service::txflow_getresource( base::tolower(paste( repo, reference, sep = "/" )), as.actor = attr(auth_result, "principal") ), silent = FALSE )
   
   if ( inherits( repo_obj, "try-error") ) {
+    cxapp::cxapp_logerr(repo_obj)
     cxapp::cxapp_log("Failed to get repository resource", attr = log_attributes )
     res$status <- 500  # Internal Error
     return( list( "error" = "Failed to get repository resource") )    
@@ -577,6 +582,7 @@ function( repo, snapshot, reference, req, res ) {
   repo_obj <- try( txflow.service::txflow_getresource( base::tolower(paste( repo, snapshot, reference, sep = "/" )), as.actor = attr(auth_result, "principal") ), silent = FALSE )
   
   if ( inherits( repo_obj, "try-error") ) {
+    cxapp::cxapp_logerr(repo_obj)
     cxapp::cxapp_log( "Failed to get repository snapshot resource from snapshot", attr = log_attributes )
     res$status <- 500  # Internal Error
     return( list( "error" = paste( "Failed to get resource from snapshot", snapshot, "in repository", repo ) ) )    
@@ -709,6 +715,9 @@ function( req, res ) {
 
   if ( inherits( wrk, "try-error" ) || is.null(wrk) ) {
 
+    if ( inherits( wrk, "try-error" ) )
+      cxapp::cxapp_logerr(wrk)
+    
     msg <- ifelse( is.na(snapshot_ref),
                    "Failed to create empty work area",
                    paste("Failed to create work area associated with snapshot", snapshot_ref ) )
@@ -806,6 +815,9 @@ function( work, req, res ) {
   
   if ( inherits( wrk, "try-error" ) ) {
     
+    if ( inherits( wrk, "try-error" ) )
+      cxapp::cxapp_logerr(wrk)
+    
     msg <- "Failed to list work areas"
     
     cxapp::cxapp_log( msg, attr = log_attributes )
@@ -895,6 +907,9 @@ function( work, req, res ) {
   wrk <- try( txflow.service::txflow_dropworkarea( work ), silent = FALSE )
   
   if ( inherits( wrk, "try-error" ) || ! inherits(wrk, "logical") || ! wrk ) {
+    
+    if ( inherits( wrk, "try-error" ) )
+      cxapp::cxapp_logerr(wrk)
     
     msg <- "Failed to drop work area"
     
@@ -998,8 +1013,14 @@ function( work, reference, req, res ) {
 
   tmp_file <- base::tempfile( pattern = "txflow-upload-", tmpdir = base::tempdir(), fileext = "" )
 
-  if ( inherits( try( base::writeBin( req$body, tmp_file ), silent = FALSE ), "try-error" ) ||
+  tmp_file_write <- try( base::writeBin( req$body, tmp_file ), silent = FALSE )
+  
+  if ( inherits( tmp_file_write, "try-error" ) ||
        ! file.exists( tmp_file ) ) {
+    
+    if ( inherits( tmp_file_write, "try-error") )
+      cxapp::cxapp_logerr(tmp_file_write)
+    
     cxapp::cxapp_log( "Unable to save submitted content", attr = log_attributes)
     res$status <- 500  # Internal Error
     return(list("error" = "Unable to process submitted content"))
@@ -1040,6 +1061,7 @@ function( work, reference, req, res ) {
   rslt <- try( txflow.service::txflow_addfile( tmp_file, work = work, attrs = attrs ), silent = FALSE )
   
   if ( inherits( rslt, "try-error") ) {
+    cxapp::cxapp_logerr(rslt)
     cxapp::cxapp_log( "Failed to save submitted content to work area", attr = log_attributes)
     res$status <- 500  # Internal Error
     return(list("error" = "Failed to save submitted content to work area"))
@@ -1135,6 +1157,7 @@ function( work, reference, req, res ) {
   rslt <- try( txflow.service::txflow_dropfile( reference, work = work ), silent = FALSE )
   
   if ( inherits( rslt, "try-error") ) {
+    cxapp::cxapp_logerr(rslt)
     cxapp::cxapp_log( "Failed to drop content from work area", attr = log_attributes)
     res$status <- 500  # Internal Error
     return(list("error" = "Failed to drop content from work area"))
@@ -1255,6 +1278,7 @@ function( work, reference, req, res ) {
   
   
   if ( inherits( obj_ref, "try-error") ) {
+    cxapp::cxapp_logerr(obj_ref)
     cxapp::cxapp_log( "Failed to add reference to work area", attr = log_attributes)
     res$status <- 500  # Internal Error
     return(list("error" = "Failed to add reference to work area"))
@@ -1374,6 +1398,7 @@ function( work, req, res ) {
   rslt <- try( txflow.service::txflow_commit( work, snapshot = attrs[["snapshot"]], as.actor = attr(auth_result, "principal") ), silent = FALSE )
 
   if ( inherits( rslt, "try-error" ) || is.null(rslt) ) {
+    cxapp::cxapp_logerr(rslt)
     cxapp::cxapp_log( "Commit of work area failed", attr = log_attributes)
     res$status <- 409  # Conflict
     return(list("error" = "Commit of work area failed"))
