@@ -25,17 +25,25 @@ txflow_repository <- function( x, as.actor = NULL ) {
   # -- connect storage 
   store <- try( txflow.service::txflow_store(), silent = try_silent )
   
-  if ( inherits(store, "try-error") )
+  if ( inherits(store, "try-error") ) {
+    cxapp::cxapp_logerr(store)
     return(invisible(list()))
+  }
 
   
 
   # -- create repository ... if it does not exist
   rslt <- try( store$repository( x, create = TRUE ), silent = try_silent )
   
-  if ( is.null(rslt) )
+  if ( inherits( rslt, "try-error") || is.null(rslt) ) {
+    
+    if ( inherits( rslt, "try-error") ) 
+      cxapp::cxapp_logerr(rslt)
+      
+     
     stop( "Could not create repository" )
   
+  }
   
   # -- audit details
   
@@ -48,7 +56,10 @@ txflow_repository <- function( x, as.actor = NULL ) {
                            "label" = paste( "Created repository", x), 
                            "actor"  = ifelse( ! is.null(as.actor), as.actor, "unknown" ) )
     
-    cxaudit::cxaudit_commit( list( cxaudit::cxaudit_record( audit_details ) ) )
+    audit_commit <- try( cxaudit::cxaudit_commit( list( cxaudit::cxaudit_record( audit_details ) ) ), silent = try_silent )
+    
+    if ( inherits( audit_commit, "try-error") )
+      cxapp::cxapp_logerr(audit_commit)
     
   }
   

@@ -33,14 +33,18 @@ txflow_snapshot <- function( x, as.actor = NULL, audited = FALSE ) {
   # -- connect storage 
   store <- try( txflow.service::txflow_store(), silent = try_silent )
   
-  if ( inherits(store, "try-error") )
+  if ( inherits(store, "try-error") ) {
+    cxapp::cxapp_logerr(store)
     return(invisible(list()))
+  }
   
   # -- snapshot
   tmp_spec <- try( store$snapshot(x, file = NULL ), silent = try_silent )
   
-  if ( inherits( tmp_spec, "try-error") )
+  if ( inherits( tmp_spec, "try-error") ) {
+    cxapp::cxapp_logerr(tmp_spec)
     return(invisible(list()))
+  }
  
   if ( is.null(tmp_spec) )
     return(invisible(NULL))
@@ -50,8 +54,10 @@ txflow_snapshot <- function( x, as.actor = NULL, audited = FALSE ) {
   
   base::unlink( base::dirname(tmp_spec), recursive = TRUE, force = FALSE )
   
-  if ( inherits( tmp_spec, "try-error" ) ) 
+  if ( inherits( lst, "try-error" ) ) {
+    cxapp::cxapp_logerr( lst )
     return(invisible(list()))
+  }
   
   
   if ( ! audited ) 
@@ -74,13 +80,22 @@ txflow_snapshot <- function( x, as.actor = NULL, audited = FALSE ) {
                                                    "actor"  = ifelse( ! is.null(as.actor), as.actor, Sys.info()["user"] ) ) ),
                     silent = try_silent )
   
-  if ( inherits( audit_rec, "try-error") )
+  if ( inherits( audit_rec, "try-error") ) {
+    cxapp::cxapp_logerr(audit_rec)
     stop( "Could not create audit record" )
+  }
   
   audit_commit <- try( cxaudit::cxaudit_commit( list( audit_rec ) ), silent = try_silent )
   
-  if ( inherits( audit_commit, "try-error") || is.null(audit_commit) || ! audit_commit )
+  if ( inherits( audit_commit, "try-error") || is.null(audit_commit) || ! audit_commit ) {
+    
+    if ( inherits( audit_commit, "try-error") )
+      cxapp::cxapp_logerr(audit_commit)
+    else
+      cxapp::cxapp_logerr("Failed to commit audit record")
+                          
     stop( "Failed to commit audit record" )
+  }
 
   
   

@@ -90,21 +90,28 @@ txflow_addfile <- function( x, work = NULL, attrs = NULL ) {
     # - get list of current entries    
     lst_entries <- try( base::readLines( file.path( wrk_path, "entries", fsep = "/" ), warn = FALSE ), silent = try_silent )
 
-    # - parse entry list
-    entry_blobs <- gsub( "^(.*)\\s.*$", "\\1", lst_entries )
-    base::names(entry_blobs) <- gsub( "^.*\\s(.*)$", "\\1", lst_entries )
-
-    
-    if ( blob_meta[["name"]] %in% base::names(entry_blobs) ) {
-
-      # - remove any associated work area files      
-      base::unlink( c( file.path( wrk_path, entry_blobs[ blob_meta[["name"]] ], fsep = "/"),
-                       file.path( wrk_path, paste0( entry_blobs[ blob_meta[["name"]] ], ".json"), fsep = "/") ),
-                    recursive = FALSE, force = TRUE )
+    if ( inherits( lst_entries, "try-error") ) {
+      cxapp::cxapp_logerr(lst_entries)
       
-
-      # - remove from list of entries
-      entry_blobs[[ blob_meta[["name"]] ]] <- NA
+    } else {
+      
+      # - parse entry list
+      entry_blobs <- gsub( "^(.*)\\s.*$", "\\1", lst_entries )
+      base::names(entry_blobs) <- gsub( "^.*\\s(.*)$", "\\1", lst_entries )
+  
+      
+      if ( blob_meta[["name"]] %in% base::names(entry_blobs) ) {
+  
+        # - remove any associated work area files      
+        base::unlink( c( file.path( wrk_path, entry_blobs[ blob_meta[["name"]] ], fsep = "/"),
+                         file.path( wrk_path, paste0( entry_blobs[ blob_meta[["name"]] ], ".json"), fsep = "/") ),
+                      recursive = FALSE, force = TRUE )
+        
+  
+        # - remove from list of entries
+        entry_blobs[[ blob_meta[["name"]] ]] <- NA
+        
+      }
       
     }
 
@@ -124,10 +131,12 @@ txflow_addfile <- function( x, work = NULL, attrs = NULL ) {
   
   # - save list of entries
   
-  if ( ! inherits( entry_lst, "try-error" ) && 
-       inherits( try( base::writeLines( entry_lst,
-                                        con = file.path( wrk_path, "entries", fsep = "/" )), silent = try_silent ), "try-error" ) ) 
+  entry_lst_write <- try( base::writeLines( entry_lst, con = file.path( wrk_path, "entries", fsep = "/" )), silent = try_silent )
+  
+  if ( inherits( entry_lst_write, "try-error" ) ) {
+    cxapp::cxapp_logerr(entry_lst_write)
     stop( "List of entries could not be amended")
+  }
       
 
   
@@ -153,9 +162,13 @@ txflow_addfile <- function( x, work = NULL, attrs = NULL ) {
 
   # -- write metadata
   
-  if ( inherits( try( base::writeLines( jsonlite::toJSON( blob_meta, pretty = TRUE, auto_unbox = TRUE ),
-                                        con = file.path( wrk_path, paste0( blob_meta[["blobs"]], ".json" ), fsep = "/" )), silent = try_silent ), "try-error" ) )
+  blob_meta_write <- try( base::writeLines( jsonlite::toJSON( blob_meta, pretty = TRUE, auto_unbox = TRUE ),
+                                            con = file.path( wrk_path, paste0( blob_meta[["blobs"]], ".json" ), fsep = "/" )), silent = try_silent )
+  
+  if ( inherits( blob_meta_write, "try-error" ) ) {
+    cxapp::cxapp_logerr( blob_meta_write )
     stop( "File details could not be added to work area")
+  }
   
 
   return(invisible( blob_meta ))

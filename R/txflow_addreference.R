@@ -64,8 +64,10 @@ txflow_addreference <- function( x, work = NULL, name = NULL ) {
 
   snapshot_spec <- try( jsonlite::fromJSON( file.path( wrk_path, lst_files, fsep = "/" ) ), silent = try_silent )
   
-  if ( inherits(snapshot_spec, "try-error") )
+  if ( inherits(snapshot_spec, "try-error") ) {
+    cxapp::cxapp_logerr( snapshot_spec )
     stop( "Work area requires a snapshot specification" )
+  }
   
   
 
@@ -115,15 +117,22 @@ txflow_addreference <- function( x, work = NULL, name = NULL ) {
   # -- get reference 
   ref_path <- try( strg$getreference( paste( resource, collapse = "/") ), silent = try_silent )
 
-  if ( inherits( ref_path, "try-error" ) || is.null(ref_path) )
+  if ( inherits( ref_path, "try-error" ) || is.null(ref_path) ) {
+    
+    if (inherits( ref_path, "try-error" ))
+      cxapp::cxapp_logerr(ref_path)
+
     return(invisible(NULL))
+  }
   
   
   # -- import reference
   resource_spec <- try( jsonlite::fromJSON( ref_path ), silent = try_silent ) 
-print(resource_spec)   
-  if ( inherits(resource_spec, "try-error") )
+   
+  if ( inherits(resource_spec, "try-error") ) {
+    cxapp::cxapp_logerr( resource_spec )
     return(invisible(NULL))
+  }
   
   
   # - overwrite name
@@ -145,23 +154,28 @@ print(resource_spec)
     # - get list of current entries
     lst_entries <- try( base::readLines( file.path( wrk_path, "entries", fsep = "/" ), warn = FALSE ), silent = try_silent )
 
+    if ( inherits(lst_entries, "try-error") ) {
+      cxapp::cxapp_logerr( lst_entries )
+    } else {
 
-    # - parse entry list
-    entry_blobs <- gsub( "^(.*)\\s.*$", "\\1", lst_entries )
-    base::names(entry_blobs) <- gsub( "^.*\\s(.*)$", "\\1", lst_entries )
-
-
-    if ( resource_spec[["name"]] %in% base::names(entry_blobs) ) {
-
-      # - remove any associated work area files
-      base::unlink( c( file.path( wrk_path, entry_blobs[ resource_spec[["name"]] ], fsep = "/"),
-                       file.path( wrk_path, paste0( entry_blobs[ resource_spec[["name"]] ], ".json"), fsep = "/") ),
-                    recursive = FALSE, force = TRUE )
-
-
-      # - remove from list of entries
-      entry_blobs[[ resource_spec[["name"]] ]] <- NA
-
+      # - parse entry list
+      entry_blobs <- gsub( "^(.*)\\s.*$", "\\1", lst_entries )
+      base::names(entry_blobs) <- gsub( "^.*\\s(.*)$", "\\1", lst_entries )
+  
+  
+      if ( resource_spec[["name"]] %in% base::names(entry_blobs) ) {
+  
+        # - remove any associated work area files
+        base::unlink( c( file.path( wrk_path, entry_blobs[ resource_spec[["name"]] ], fsep = "/"),
+                         file.path( wrk_path, paste0( entry_blobs[ resource_spec[["name"]] ], ".json"), fsep = "/") ),
+                      recursive = FALSE, force = TRUE )
+  
+  
+        # - remove from list of entries
+        entry_blobs[[ resource_spec[["name"]] ]] <- NA
+  
+      }
+    
     }
 
   } # end of if-statement for list of entries
@@ -179,20 +193,26 @@ print(resource_spec)
   
   # - save list of entries
 
-  if ( ! inherits( entry_lst, "try-error" ) &&
-       inherits( try( base::writeLines( entry_lst,
-                                        con = file.path( wrk_path, "entries", fsep = "/" )), silent = try_silent ), "try-error" ) )
+  lst_entries_write <- try( base::writeLines( entry_lst,
+                                              con = file.path( wrk_path, "entries", fsep = "/" )), silent = try_silent )
+  
+  if ( inherits( lst_entries_write, "try-error" ) ) {
+    cxapp::cxapp_logerr( lst_entries_write )
     stop( "List of entries could not be amended")
-
+  }
   
   
   
   # -- save resource specification
-  if ( inherits( try( base::writeLines( jsonlite::toJSON( resource_spec, pretty = TRUE, auto_unbox = TRUE), 
-                                        con = file.path( wrk_path, paste0( resource_spec[["blobs"]], ".json"), fsep = "/" ) ),
-                      silent = try_silent ),
-                 "try-error") )
+  
+  resource_spec_write <- try( base::writeLines( jsonlite::toJSON( resource_spec, pretty = TRUE, auto_unbox = TRUE), 
+                                                con = file.path( wrk_path, paste0( resource_spec[["blobs"]], ".json"), fsep = "/" ) ),
+                              silent = try_silent )
+  
+  if ( inherits( resource_spec_write, "try-error") ) {
+    cxapp::cxapp_logerr( resource_spec_write )
     stop( "Could not save resource specification")
+  }
   
 
   

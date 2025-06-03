@@ -92,8 +92,10 @@
                silent = .self$.attr[["mode.try.silent"]]  )
   
   
-  if ( inherits( rslt, "try-error") || (httr2::resp_status( rslt ) != 200) )
+  if ( inherits( rslt, "try-error") || (httr2::resp_status( rslt ) != 200) ) {
+    cxapp::cxapp_logerr( "Authentication with Azure failed" )
     stop( "Authentication with Azure failed" )
+  }
   
   
   lst_token <- try ( httr2::resp_body_json( rslt ), silent = .self$.attr[["mode.try.silent"]] )
@@ -130,14 +132,23 @@
                  httr2::req_perform(), 
                silent = .self$.attr[["mode.try.silent"]] )
   
-  if ( inherits( rslt, "try-error") || (httr2::resp_status(rslt) != 200) )
+  if ( inherits( rslt, "try-error") || (httr2::resp_status(rslt) != 200) ) {
+    
+    if ( inherits( rslt, "try-error") )
+      cxapp::cxapp_logerr(rslt)
+    else 
+      cxapp::cxapp_logerr( paste("Retrieving list of repositories resulted in HTTP code", as.character(httr2::resp_status(rslt))) )
+    
     return(invisible( character(0) ))
+  }
   
   
   xmlobj_containers <- try( httr2::resp_body_xml(rslt), silent = .self$.attr[["mode.try.silent"]] )
   
-  if ( inherits( xmlobj_containers, "try-error") )
+  if ( inherits( xmlobj_containers, "try-error") ) {
+    cxapp::cxapp_logerr( xmlobj_containers )
     return(invisible( character(0) ))
+  }
   
   
   # -- extract list of containers
@@ -195,8 +206,15 @@
                silent = .self$.attr[["mode.try.silent"]] )
   
   
-  if ( inherits( rslt, "try-error") || ( httr2::resp_status(rslt) != 201 ) )
+  if ( inherits( rslt, "try-error") || ( httr2::resp_status(rslt) != 201 ) ) {
+    
+    if ( inherits( rslt, "try-error") )
+      cxapp::cxapp_logerr(rslt)
+    else 
+      cxapp::cxapp_logerr( paste("Creating a repository resulted in HTTP code", as.character(httr2::resp_status(rslt))) )
+
     return(invisible(NULL))
+  }
   
   
   # -- verify container is visible
@@ -236,8 +254,15 @@
                silent = .self$.attr[["mode.try.silent"]] )
   
   
-  if ( inherits( rslt, "try-error") || ( httr2::resp_status(rslt) != 200 ) )
+  if ( inherits( rslt, "try-error") || ( httr2::resp_status(rslt) != 200 ) ) {
+    
+    if ( inherits( rslt, "try-error") )
+      cxapp::cxapp_logerr(rslt)
+    else 
+      cxapp::cxapp_logerr( paste("Retrieving list of repository snapshots resulted in HTTP code", as.character(httr2::resp_status(rslt))) )
+
     return(invisible(NULL))
+  }
   
   xmlobj_blobs <- httr2::resp_body_xml( rslt )
   
@@ -297,17 +322,33 @@
                  httr2::req_perform(), 
                silent = .self$.attr[["mode.try.silent"]] )
   
-  if ( inherits( rslt, "try-error") || ( httr2::resp_status(rslt) != 200 ) )
+  if ( inherits( rslt, "try-error") || ( httr2::resp_status(rslt) != 200 ) ) {
+    
+    if ( inherits( rslt, "try-error") )
+      cxapp::cxapp_logerr(rslt)
+    else 
+      cxapp::cxapp_logerr( paste("Retrieving repository snapshot specification resulted in HTTP code", as.character(httr2::resp_status(rslt))) )
+
     return(invisible(NULL))
+  }
   
   
   # - temporary file
   
   tmp_file <- gsub( "\\\\", "/", base::tempfile( pattern = "temp-work-", tmpdir = base::tempdir(), fileext = "" ) )
   
-  if ( inherits( try( base::writeBin( httr2::resp_body_raw(rslt), tmp_file), silent = .self$.attr[["mode.try.silent"]]), "try-error" ) ||
-       ! file.exists( tmp_file ) )
+  tmp_file_write <- try( base::writeBin( httr2::resp_body_raw(rslt), tmp_file), silent = .self$.attr[["mode.try.silent"]] )
+  
+  if ( inherits( tmp_file_write, "try-error" ) ||
+       ! file.exists( tmp_file ) ) {
+    
+    if ( inherits( tmp_file_write, "try-error") )
+      cxapp::cxapp_logerr(tmp_file_write)
+    else 
+      cxapp::cxapp_logerr( "Error saving retrieved repository snapshot specification" )
+
     return(invisible(NULL))
+  }
   
   base::names(tmp_file) <- obj_cacheref
   
@@ -365,9 +406,14 @@
     snapshot_spec <- try( jsonlite::fromJSON( .self$snapshot( paste( resource_spec[ c( "repository", "snapshot") ], collapse = "/" ) ), 
                                               simplifyVector = FALSE ),
                           silent = .self$.attr[["mode.try.silent"]] )
+
+    if ( inherits( snapshot_spec, "try-error") ) {
+      cxapp::cxapp_logerr( snapshot_spec )
+      return(invisible(NULL))
+    }
     
-    if ( inherits( snapshot_spec, "try-error") ||
-         ! "members" %in% base::names(snapshot_spec) ||
+        
+    if ( ! "members" %in% base::names(snapshot_spec) ||
          ( length(snapshot_spec[["members"]]) == 0  ) )
       return(invisible(NULL))
     
@@ -406,17 +452,33 @@
                  httr2::req_perform(), 
                silent = .self$.attr[["mode.try.silent"]] )
   
-  if ( inherits( rslt, "try-error") || ( httr2::resp_status(rslt) != 200 ) )
+  if ( inherits( rslt, "try-error") || ( httr2::resp_status(rslt) != 200 ) ) {
+    
+    if ( inherits( rslt, "try-error") )
+      cxapp::cxapp_logerr(rslt)
+    else 
+      cxapp::cxapp_logerr( paste("Retrieving repository resource resulted in HTTP status code", as.character(httr2::resp_status(rslt))) )
+    
     return(invisible(NULL))
+  }
   
   
   # - temporary file
   
   tmp_file <- gsub( "\\\\", "/", base::tempfile( pattern = "temp-work-", tmpdir = base::tempdir(), fileext = "" ) )
   
-  if ( inherits( try( base::writeBin( httr2::resp_body_raw(rslt), tmp_file), silent = .self$.attr[["mode.try.silent"]]), "try-error" ) ||
-       ! file.exists( tmp_file ) )
+  tmp_file_write <- try( base::writeBin( httr2::resp_body_raw(rslt), tmp_file), silent = .self$.attr[["mode.try.silent"]])
+  
+  if ( inherits( tmp_file_write, "try-error" ) ||
+       ! file.exists( tmp_file ) ) {
+    
+    if ( inherits( tmp_file_write, "try-error") )
+      cxapp::cxapp_logerr(tmp_file_write)
+    else 
+      cxapp::cxapp_logerr( "Error saving retrieved repository resource" )    
+    
     return(invisible(NULL))
+  }
   
   base::names(tmp_file) <- obj_cacheref
   
@@ -476,8 +538,15 @@
                                               simplifyVector = FALSE ), 
                           silent = .self$.attr[["mode.try.silent"]] )
     
-    if ( inherits( snapshot_spec, "try-error") ||
-         ! "members" %in% base::names(snapshot_spec) ||
+    
+    
+    if ( inherits( snapshot_spec, "try-error") ) {
+      cxapp::cxapp_logerr( snapshot_spec )
+      return(invisible(NULL))
+    }    
+    
+    
+    if ( ! "members" %in% base::names(snapshot_spec) ||
          ( length(snapshot_spec[["members"]]) == 0  ) )
       return(invisible(NULL))
     
@@ -520,17 +589,34 @@
                  httr2::req_perform(), 
                silent = .self$.attr[["mode.try.silent"]] )
   
-  if ( inherits( rslt, "try-error") || ( httr2::resp_status(rslt) != 200 ) )
+  if ( inherits( rslt, "try-error") || ( httr2::resp_status(rslt) != 200 ) ) {
+    
+    if ( inherits( rslt, "try-error") )
+      cxapp::cxapp_logerr(rslt)
+    else 
+      cxapp::cxapp_logerr( paste("Retrieving repository resource resulted in HTTP status code", as.character(httr2::resp_status(rslt))) )
+    
+    
     return(invisible(NULL))
+  }
   
   
   # - temporary file
   
   tmp_file <- gsub( "\\\\", "/", base::tempfile( pattern = "temp-work-", tmpdir = base::tempdir(), fileext = "" ) )
   
-  if ( inherits( try( base::writeBin( httr2::resp_body_raw(rslt), tmp_file), silent = .self$.attr[["mode.try.silent"]]), "try-error" ) ||
-       ! file.exists( tmp_file ) )
+  tmp_file_write <- try( base::writeBin( httr2::resp_body_raw(rslt), tmp_file), silent = .self$.attr[["mode.try.silent"]])
+  
+  if ( inherits( tmp_file_write, "try-error" ) ||
+       ! file.exists( tmp_file ) ) {
+    
+    if ( inherits( tmp_file_write, "try-error") )
+      cxapp::cxapp_logerr(tmp_file_write)
+    else 
+      cxapp::cxapp_logerr( "Error saving retrieved resource reference" )        
+    
     return(invisible(NULL))
+  }
   
   base::names(tmp_file) <- obj_cacheref
   
@@ -633,24 +719,32 @@
                        httr2::req_perform(), 
                      silent = .self$.attr[["mode.try.silent"]] )
   
-  
-  if ( ! inherits( rslt_blobs, "try-error") || ( httr2::resp_status(rslt_blobs) == 200 ) ) {
+  if ( inherits( rslt_blobs, "try-error") || ( httr2::resp_status(rslt_blobs) != 200 ) ) {
+
+    if ( inherits( rslt_blobs, "try-error") )
+      cxapp::cxapp_logerr(rslt)
+    else 
+      cxapp::cxapp_logerr( paste("Retrieving repository contents resulted in HTTP status code", as.character(httr2::resp_status(rslt_blobs))) )
     
-    # - extract list of blobs
-    
-    lst_xmlobj <- xml2::as_list( httr2::resp_body_xml( rslt_blobs ) )
-    
-    if ( "EnumerationResults" %in% base::names(lst_xmlobj) ||
-         "Blobs" %in% base::names(lst_xmlobj[["EnumerationResults"]]) ||
-         ( length(lst_xmlobj[["EnumerationResults"]][["Blobs"]]) > 0 ) ) 
-      for ( xitem in lst_xmlobj[["EnumerationResults"]][["Blobs"]] ) 
-        if ( "Name" %in% base::names(xitem) )
-          lst_blobs <- append( lst_blobs, xitem[["Name"]][[1]] )
-    
-    
-    base::rm( list = c( "rslt_blobs", "lst_xmlobj" ) )
-    
+    return(invisible(NULL))
   }
+  
+  
+  
+  # - extract list of blobs
+  
+  lst_xmlobj <- xml2::as_list( httr2::resp_body_xml( rslt_blobs ) )
+  
+  if ( "EnumerationResults" %in% base::names(lst_xmlobj) ||
+       "Blobs" %in% base::names(lst_xmlobj[["EnumerationResults"]]) ||
+       ( length(lst_xmlobj[["EnumerationResults"]][["Blobs"]]) > 0 ) ) 
+    for ( xitem in lst_xmlobj[["EnumerationResults"]][["Blobs"]] ) 
+      if ( "Name" %in% base::names(xitem) )
+        lst_blobs <- append( lst_blobs, xitem[["Name"]][[1]] )
+  
+  
+  base::rm( list = c( "rslt_blobs", "lst_xmlobj" ) )
+  
   
   
   
@@ -695,6 +789,10 @@
     
     
     if ( inherits( rslt_xpath, "try-error") || ( httr2::resp_status(rslt_xpath) != 201 ) ) {
+
+      if ( inherits( rslt_xpath, "try-error") )
+        cxapp::cxapp_logerr(rslt)
+
       rslt[ xpath ] <- "fail"
       rm( list = "rslt_xpath" )
       next()

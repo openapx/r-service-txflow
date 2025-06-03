@@ -25,8 +25,10 @@ txflow_commit <- function( x, snapshot = NULL, as.actor = NULL ) {
   # -- connect to work area
   wrk <- try( txflow.service::txflow_workarea( work = x ), silent = try_silent )
   
-  if ( inherits( wrk, "try-error" ) )
+  if ( inherits( wrk, "try-error" ) ) {
+    cxapp::cxapp_logerr(wrk)
     stop( "Work area for snapshot could not be established" )
+  }
   
   wrk_area <- base::unname(attributes(wrk)[["path"]])
 
@@ -47,8 +49,10 @@ txflow_commit <- function( x, snapshot = NULL, as.actor = NULL ) {
   
   snapshot_spec <- try( jsonlite::fromJSON( file.path( wrk_area, snapshot_spec_file, fsep = "/" )), silent = try_silent )
   
-  if ( inherits( snapshot_spec, "try-error" ) )
+  if ( inherits( snapshot_spec, "try-error" ) ) {
+    cxapp::cxapp_logerr( snapshot_spec )
     stop( "Could not import snapshot specification" )
+  }
 
   # note: needed for future reference
   snapshot_spec_scope <- paste( snapshot_spec[ c( "repository", "snapshot") ], collapse = "/" )
@@ -87,7 +91,7 @@ txflow_commit <- function( x, snapshot = NULL, as.actor = NULL ) {
   }
 
 
-  if ( "unknown" %in% commit_scope )
+  if ( any( c("unknown", "undefined") %in% commit_scope ) )
     stop( "Commit snapshot not defined" )
 
   
@@ -131,12 +135,16 @@ txflow_commit <- function( x, snapshot = NULL, as.actor = NULL ) {
   prior_inventory <- character(0)
   
   lst_inv <- try( base::readLines( file.path( wrk_area, "inventory", fsep = "/"), warn = FALSE ), silent = try_silent )
-  
-  if ( ! inherits( lst_inv, "try-error" ) ) {
+
+  if ( inherits( lst_inv, "try-error" ) ) {
+    cxapp::cxapp_logerr(lst_inv)
+  } else {
+    
     # - parse inventory
     #   note: expecting format <digest><space><file>
     prior_inventory <- gsub( "^(.*)\\s.*$", "\\1", lst_inv )
     base::names(prior_inventory) <- gsub( "^.*\\s(.*)$", "\\1", lst_inv )
+    
   }
 
   
@@ -198,8 +206,10 @@ txflow_commit <- function( x, snapshot = NULL, as.actor = NULL ) {
     # - import blob specification
     blob_spec <- try( jsonlite::fromJSON( file.path( wrk_area, xfile, fsep = "/" )), silent = try_silent )
     
-    if ( inherits( blob_spec, "try-error") )
+    if ( inherits( blob_spec, "try-error") ) {
+      cxapp::cxapp_logerr(blob_spec)
       next()
+    }
     
     
     # - process deleted blobs   
@@ -316,9 +326,13 @@ txflow_commit <- function( x, snapshot = NULL, as.actor = NULL ) {
 
   # - update snapshot specification 
   
-  if ( inherits( try( base::writeLines( jsonlite::toJSON( snapshot_spec, pretty = TRUE, auto_unbox = TRUE ),
-                                        con = file.path( wrk_area, snapshot_spec_file, fsep = "/" )), silent = try_silent ), "try-error") )
+  snapshot_spec_write <- try( base::writeLines( jsonlite::toJSON( snapshot_spec, pretty = TRUE, auto_unbox = TRUE ),
+                                                con = file.path( wrk_area, snapshot_spec_file, fsep = "/" )), silent = try_silent )
+  
+  if ( inherits( snapshot_spec_write, "try-error") ) {
+    cxapp::cxapp_logerr(snapshot_spec_write)
     stop( "Could not update snapshot specification" )
+  }
 
   
   lst_commit <- append( lst_commit, 
@@ -332,8 +346,10 @@ txflow_commit <- function( x, snapshot = NULL, as.actor = NULL ) {
   
   strg <- try( txflow.service::txflow_store(), silent = try_silent )
   
-  if ( inherits(strg, "try-error") )
+  if ( inherits(strg, "try-error") ) {
+    cxapp::cxapp_logerr( strg )
     stop( "Storage not available" )
+  }
   
   
   
@@ -402,7 +418,10 @@ txflow_commit <- function( x, snapshot = NULL, as.actor = NULL ) {
 
   commit_rslt <- try( strg$commit( commit_files, repository = commit_scope["repository"], overwrite = TRUE ), silent = try_silent )
 
+  if ( inherits( commit_rslt, "try-error") )
+    cxapp::cxapp_logerr( commit_rslt )
 
+  
   # - auditor
 
   audit_records <- list()
@@ -432,14 +451,23 @@ txflow_commit <- function( x, snapshot = NULL, as.actor = NULL ) {
 
         
     if ( "_attributes_" %in% base::names(audit_rec_info) && ( length(audit_rec_info[["_attributes_"]]) > 0 ) )
-      for ( xattr in audit_rec_info[["_attributes_"]] )
-        if ( inherits( try( audit_rec$setattribute( xattr[["key"]], 
-                                                    value = ifelse( "value" %in% base::names(xattr), xattr[["value"]], ""), 
-                                                    label = ifelse( "label" %in% base::names(xattr), xattr[["label"]], xattr[["key"]]),
-                                                    qualifier = ifelse( "qualifier" %in% base::names(xattr), xattr[["qualifier"]], "") ), 
-                            silent = try_silent ), "try-error" ) )
+      for ( xattr in audit_rec_info[["_attributes_"]] ) {
+        
+        attrs_add <- try( audit_rec$setattribute( xattr[["key"]], 
+                                                  value = ifelse( "value" %in% base::names(xattr), xattr[["value"]], ""), 
+                                                  label = ifelse( "label" %in% base::names(xattr), xattr[["label"]], xattr[["key"]]),
+                                                  qualifier = ifelse( "qualifier" %in% base::names(xattr), xattr[["qualifier"]], "") ), 
+                          silent = try_silent )
+        
+        if ( inherits( attrs_add, "try-error" ) ) {
+          cxapp::cxapp_logerr(attrs_add)
           stop( "Could not register attributer for audit record")
+        }
+        
     
+        base::rm( list = "attrs_add" )
+        
+      } # end for-statement on record attributes
     
 
     audit_records[[ length(audit_records) + 1 ]] <- audit_rec
@@ -451,8 +479,15 @@ txflow_commit <- function( x, snapshot = NULL, as.actor = NULL ) {
 
   audit_commit <- try( cxaudit::cxaudit_commit( audit_records ), silent = try_silent )
 
-  if ( inherits( audit_commit, "try-error") || ! audit_commit )
+  if ( inherits( audit_commit, "try-error") || ! audit_commit ) {
+    
+    if ( inherits( audit_commit, "try-error") )
+      cxapp::cxapp_logerr(audit_commit)
+    else
+      cxapp::cxapp_logerr( "Failed to commit audit records" )
+    
     stop( "Failed to commit audit records")
+  }
 
 
 

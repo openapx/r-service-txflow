@@ -316,14 +316,18 @@
   snapshot_file <- try( .self$snapshot( paste( resource_spec[ c( "repository", "snapshot") ], collapse = "/" ) ), silent = .self$.attr[["mode.try.silent"]] )
   
   # - snapshot specification does not exist ... so cannot contain reference
-  if ( inherits(snapshot_file, "try-error") )
+  if ( inherits(snapshot_file, "try-error") ) {
+    cxapp::cxapp_logerr(snapshot_file)
     return(invisible(NULL))
+  }
   
   # - snapshot specification
   snapshot_spec <- try( jsonlite::fromJSON(snapshot_file), silent = .self$.attr[["mode.try.silent"]] )
 
-  if ( inherits(snapshot_spec, "try-error") )
+  if ( inherits(snapshot_spec, "try-error") ) {
+    cxapp::cxapp_logerr( snapshot_spec )
     return(invisible(NULL))
+  }
   
   
   
@@ -438,8 +442,10 @@
   # - snapshot specification
   snapshot_spec <- try( jsonlite::fromJSON(snapshot_file), silent = .self$.attr[["mode.try.silent"]] )
   
-  if ( inherits(snapshot_spec, "try-error") )
+  if ( inherits(snapshot_spec, "try-error") ) {
+    cxapp::cxapp_logerr(snapshot_spec)
     return(invisible(NULL))
+  }
   
   
   
@@ -611,8 +617,10 @@
   
   repo_path <- try( .self$repository( repository ), silent = .self$.attr[["mode.try.silent"]] )
   
-  if ( inherits( repo_path, "try-error" ) )
+  if ( inherits( repo_path, "try-error" ) ) {
+    cxapp::cxapp_logerr(repo_path)
     return(invisible(NULL))
+  }
 
   
   rslt <- base::rep_len( "not done", length(x) )

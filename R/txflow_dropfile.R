@@ -51,7 +51,10 @@ txflow_dropfile <- function( x, work = NULL ) {
   
   entry_lst <- try( base::readLines( file.path( wrk_path, "entries")), silent = try_silent )
   
-  if ( ! inherits( entry_lst, "try-error") ) {
+  if ( inherits( lst_entries, "try-error") ) {
+    cxapp::cxapp_logerr(lst_entries)
+    
+  } else {
     
     # - parse entry list
     entry_blobs <- gsub( "^(.*)\\s.*$", "\\1", entry_lst )
@@ -83,7 +86,7 @@ txflow_dropfile <- function( x, work = NULL ) {
     
   }
   
-print(resource_blob)
+
     
   # - blob cannot be identified .. so obviously nothing to drop
   if ( is.na(resource_blob) )
@@ -94,18 +97,22 @@ print(resource_blob)
   # - remove blob from entries
   entry_blobs <- entry_blobs[ ! entry_blobs %in% resource_blob ]
   
-print(entry_blobs)  
+
   # - save list of entries
   
   entry_lst <- sapply( base::names(entry_blobs), function( z ) {
     paste( entry_blobs[z], z )
   })  
   
-  if ( ! inherits( entry_lst, "try-error" ) &&
-       inherits( try( base::writeLines( entry_lst,
-                                        con = file.path( wrk_path, "entries", fsep = "/" )), silent = try_silent ), "try-error" ) )
-    stop( "List of entries could not be amended")
   
+  entry_lst_write <- try( base::writeLines( entry_lst,
+                                            con = file.path( wrk_path, "entries", fsep = "/" )), silent = try_silent )
+  
+
+  if ( inherits( entry_lst_write, "try-error" ) ) {
+    cxapp::cxapp_logerr(entry_lst_write)
+    stop( "List of entries could not be amended")
+  }  
   
   
   

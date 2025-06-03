@@ -41,8 +41,13 @@ txflow_getresource <- function( x, as.actor = NULL ) {
   # -- resource
   obj <- try( store$getresource(x), silent = try_silent )
   
-  if ( inherits( obj, "try-error") || is.null(obj) )
+  if ( inherits( obj, "try-error") || is.null(obj) ) {
+    
+    if ( inherits( obj, "try-error") )
+      cxapp::cxapp_logerr(obj)
+    
     return(invisible(NULL))
+  }
 
 
   # -- auditing
@@ -51,16 +56,20 @@ txflow_getresource <- function( x, as.actor = NULL ) {
   # - get blob reference
   spec_file <- try( store$getreference(x), silent = try_silent )
 
-  if ( inherits( spec_file, "try-error") || is.null(spec_file) )
+  if ( inherits( spec_file, "try-error") || is.null(spec_file) ) {
+    cxapp::cxapp_logerr(spec_file)
     return(invisible(NULL))
+  }
 
     
   # - import blob reference
   
   blob_spec <- try( jsonlite::fromJSON( spec_file ), silent = try_silent )
   
-  if ( inherits( blob_spec, "try-error") )
+  if ( inherits( blob_spec, "try-error") ) {
+    cxapp::cxapp_logerr(blob_spec)
     return(invisible(NULL))
+  }
   
   
   audit_rec <- try( cxaudit::cxaudit_record( list( "event" = "read",
@@ -75,13 +84,22 @@ txflow_getresource <- function( x, as.actor = NULL ) {
                     silent = try_silent )
 
   
-  if ( inherits( audit_rec, "try-error") )
+  if ( inherits( audit_rec, "try-error") ) {
+    cxapp::cxapp_logerr(audit_rec)
     stop( "Could not create audit record" )
+  }
   
   audit_commit <- try( cxaudit::cxaudit_commit( list( audit_rec ) ), silent = try_silent )
   
-  if ( inherits( audit_commit, "try-error") || is.null(audit_commit) || ! audit_commit )
+  if ( inherits( audit_commit, "try-error") || is.null(audit_commit) || ! audit_commit ) {
+    
+    if ( inherits( audit_commit, "try-error") )
+      cxapp::cxapp_logerr(audit_commit)
+    else
+      cxapp::cxapp_logerr("Failed to commit audit record")
+    
     stop( "Failed to commit audit record" )
+  }
   
   
   

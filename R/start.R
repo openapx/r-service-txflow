@@ -41,7 +41,7 @@ start <- function( port = 12345 ) {
   xplumb <- utils::head( xpaths[ file.exists(xpaths) ], n = 1 )
   
   if ( length( xplumb ) == 0 ) {
-    cxapp::cxapp_log( "Could not find plumber file" )
+    cxapp::cxapp_logerr( "Could not find plumber file" )
     stop( "Could not find plumber.R file " )
   }
   
