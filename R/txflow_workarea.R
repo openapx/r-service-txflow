@@ -132,7 +132,7 @@ txflow_workarea <- function( work = NULL, snapshot = NULL ) {
     
   # - import snapshot specification
   
-  snapshot_spec <- try( jsonlite::fromJSON( path_spec ), silent = try_silent )
+  snapshot_spec <- try( jsonlite::fromJSON( path_spec, simplifyVector = FALSE ), silent = try_silent )
   
   if ( inherits( snapshot_spec, "try-error") ) {
     cxapp::cxapp_logerr(snapshot_spec)
