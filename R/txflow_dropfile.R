@@ -51,8 +51,8 @@ txflow_dropfile <- function( x, work = NULL ) {
   
   entry_lst <- try( base::readLines( file.path( wrk_path, "entries")), silent = try_silent )
   
-  if ( inherits( lst_entries, "try-error") ) {
-    cxapp::cxapp_logerr(lst_entries)
+  if ( inherits( entry_lst, "try-error") ) {
+    cxapp::cxapp_logerr(entry_lst)
     
   } else {
     
