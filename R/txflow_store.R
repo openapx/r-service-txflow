@@ -16,7 +16,7 @@ txflow_store <- function() {
     
   # -- Azure block blob storage
   if ( base::tolower(base::trimws(cfg$option("txflow.store", unset = "not-defined"))) == "azureblobs" )
-    return(invisible( txflow.service:::.txflow_azureblobs ))
+    return(invisible( txflow.service:::.txflow_azureblobs() ))
   
   
   cxapp::cxapp_logerr("Invalid storage configuration")
