@@ -2,3 +2,5 @@ iproute2
 nginx
 libssl-dev
 libsodium-dev
+libxml2
+libxml2-dev
